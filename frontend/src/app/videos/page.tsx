@@ -452,7 +452,7 @@ export default function VideoLibraryPage() {
                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">🔥 Latest Videos</h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                       {channelContent.latestVideos.map((v: any, idx) => (
-                         <div key={idx} onClick={() => router.push(`/videos/${v.id}`)} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col group cursor-pointer">
+                         <div key={idx} onClick={() => importVideo(v.youtubeId || v.id, v.title, v.author)} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col group cursor-pointer">
                             <div className="relative aspect-video">
                               <img src={v.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt="thumbnail" />
                               <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-1 rounded font-mono">{v.duration}</span>
