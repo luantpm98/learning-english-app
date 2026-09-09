@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../../../utils/storage";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -168,10 +169,10 @@ export default function FlashcardLearnPage() {
         <button 
           onClick={() => {
             // Save word logic
-            const saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+            const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
             if (!saved.find((w: any) => w.id === currentWord.id)) {
               saved.push(currentWord);
-              localStorage.setItem("savedWords", JSON.stringify(saved));
+              localStorage.setItem(getUserKey("savedWords"), JSON.stringify(saved));
             }
             handleNext(false);
           }}

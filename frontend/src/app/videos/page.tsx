@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -36,7 +37,7 @@ export default function VideoLibraryPage() {
   }, []);
 
   const loadRecommendations = async () => {
-    const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+    const history = JSON.parse(localStorage.getItem(getUserKey("searchHistory")) || "[]");
     try {
       if (history.length > 0) {
         // Pick up to 3 random topics from history
@@ -71,10 +72,10 @@ export default function VideoLibraryPage() {
         axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/channels?userId=${user.id}`)
       ]);
       
-      let savedIds = JSON.parse(localStorage.getItem("savedVideoIds") || "null");
+      let savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "null");
       if (savedIds === null) {
          savedIds = vRes.data.map((v: any) => v.id);
-         localStorage.setItem("savedVideoIds", JSON.stringify(savedIds));
+         localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(savedIds));
       }
       setVideos(vRes.data.filter((v: any) => savedIds.includes(v.id)));
       setMyChannels(cRes.data);
@@ -88,12 +89,12 @@ export default function VideoLibraryPage() {
     if (!searchQuery.trim()) return;
     
     // Save to history
-    const history = JSON.parse(localStorage.getItem("searchHistory") || "[]");
+    const history = JSON.parse(localStorage.getItem(getUserKey("searchHistory")) || "[]");
     const query = searchQuery.trim().toLowerCase();
     if (!history.includes(query)) {
       history.unshift(query);
       if (history.length > 20) history.pop();
-      localStorage.setItem("searchHistory", JSON.stringify(history));
+      localStorage.setItem(getUserKey("searchHistory"), JSON.stringify(history));
     }
 
     setLoading(true);
@@ -195,7 +196,7 @@ export default function VideoLibraryPage() {
     
     setImportingAll(true);
     let successCount = 0;
-    const savedIds = JSON.parse(localStorage.getItem("savedVideoIds") || "[]");
+    const savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "[]");
     
     for (const v of playlistVideos) {
       try {
@@ -212,7 +213,7 @@ export default function VideoLibraryPage() {
         console.error("Failed to import", v.title);
       }
     }
-    localStorage.setItem("savedVideoIds", JSON.stringify(savedIds));
+    localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(savedIds));
     setImportingAll(false);
     alert(`Successfully added ${successCount}/${playlistVideos.length} videos to your library!`);
     fetchSaved(); // refresh saved tab data just in case
@@ -223,9 +224,9 @@ export default function VideoLibraryPage() {
     e.stopPropagation();
     if (!window.confirm("Are you sure you want to remove this video from your saved list?")) return;
     try {
-      const savedIds = JSON.parse(localStorage.getItem("savedVideoIds") || "[]");
+      const savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "[]");
       const updated = savedIds.filter((vId: number) => vId !== id);
-      localStorage.setItem("savedVideoIds", JSON.stringify(updated));
+      localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(updated));
       fetchSaved();
     } catch (err) {
       console.error(err);

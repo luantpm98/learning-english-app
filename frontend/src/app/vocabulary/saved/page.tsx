@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../../utils/storage";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -7,7 +8,7 @@ export default function SavedWordsPage() {
   const [savedWords, setSavedWords] = useState<any[]>([]);
 
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+    const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
     setSavedWords(saved);
   }, []);
 

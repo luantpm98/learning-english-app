@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../../utils/storage";
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -347,21 +348,21 @@ export default function VideoDetailPage() {
   
   useEffect(() => {
     if (video) {
-       const savedIds = JSON.parse(localStorage.getItem("savedVideoIds") || "[]");
+       const savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "[]");
        setIsSaved(savedIds.includes(video.id));
     }
   }, [video]);
 
   const toggleSaveVideo = () => {
     if (!video) return;
-    const savedIds = JSON.parse(localStorage.getItem("savedVideoIds") || "[]");
+    const savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "[]");
     if (isSaved) {
       const updated = savedIds.filter((vId: number) => vId !== video.id);
-      localStorage.setItem("savedVideoIds", JSON.stringify(updated));
+      localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(updated));
       setIsSaved(false);
     } else {
       savedIds.push(video.id);
-      localStorage.setItem("savedVideoIds", JSON.stringify(savedIds));
+      localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(savedIds));
       setIsSaved(true);
     }
   };

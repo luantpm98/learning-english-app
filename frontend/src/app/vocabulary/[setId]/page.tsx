@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../../utils/storage";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -41,7 +42,7 @@ export default function VocabularySetPage() {
         router.push("/vocabulary");
       });
     }
-    const saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+    const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
     setSavedWords(saved);
   }, [id, router]);
 
@@ -79,7 +80,7 @@ export default function VocabularySetPage() {
        saved.push(word);
     }
     setSavedWords(saved);
-    localStorage.setItem("savedWords", JSON.stringify(saved));
+    localStorage.setItem(getUserKey("savedWords"), JSON.stringify(saved));
   };
 
   if (!set) return <div className="p-8">Loading...</div>;

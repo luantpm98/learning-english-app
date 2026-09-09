@@ -1,4 +1,5 @@
 "use client";
+import { getUserKey } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -34,7 +35,7 @@ export default function VocabularySetsPage() {
     }).catch(() => {});
 
     // Load saved words count
-    const saved = JSON.parse(localStorage.getItem("savedWords") || "[]");
+    const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
     setSavedWordsCount(saved.length);
   }, []);
 
