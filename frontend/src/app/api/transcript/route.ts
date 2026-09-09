@@ -6,36 +6,48 @@ export async function GET(request: Request) {
   
   if (!videoId) return NextResponse.json({ error: 'Missing videoId' }, { status: 400 });
 
-  try {
-    const response = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
+  const urls = [
+    `https://www.youtube.com/watch?v=${videoId}`,
+    `https://corsproxy.io/?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`
+  ];
+
+  let playerResponse: any = null;
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        }
+      });
+      const html = await response.text();
+      const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+(?:meta|head)|<\/script|\n)/);
+      if (match) {
+        const parsed = JSON.parse(match[1]);
+        if (parsed.captions) {
+          playerResponse = parsed;
+          break; // Found working response!
+        }
       }
-    });
-    const html = await response.text();
-    
-    // Find ytInitialPlayerResponse
-    const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+(?:meta|head)|<\/script|\n)/);
-    if (!match) throw new Error("Could not find player response in HTML");
-    
-    const playerResponse = JSON.parse(match[1]);
-    const tracks = playerResponse.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    
-    if (!tracks || tracks.length === 0) {
-      // DUMP the HTML to see what we are getting! Or dump the playerResponse
-      return NextResponse.json({ error: "No captions found for video", playerResponseKeys: Object.keys(playerResponse), hasCaptions: !!playerResponse.captions, isPlayable: playerResponse.playabilityStatus?.status });
+    } catch (e) {
+      console.log('Failed fetching from url', url, e);
     }
-    
-    // Find English track or fallback to first
+  }
+
+  if (!playerResponse || !playerResponse.captions) {
+    return NextResponse.json({ error: 'No captions found or blocked by YouTube' }, { status: 400 });
+  }
+
+  try {
+    const tracks = playerResponse.captions.playerCaptionsTracklistRenderer.captionTracks;
     let track = tracks.find((t: any) => t.languageCode === 'en' || t.languageCode === 'en-US' || t.languageCode === 'en-GB');
     if (!track) track = tracks[0];
     
-    // Fetch the XML
     const xmlResponse = await fetch(track.baseUrl);
     const xmlText = await xmlResponse.text();
     
-    // Simple XML parse using regex (since we are in Edge/Serverless without DOMParser)
     const transcript: any[] = [];
     const regex = /<text\s+start="([\d.]+)"\s+dur="([\d.]+)"[^>]*>(.*?)<\/text>/g;
     let xmlMatch;
@@ -55,8 +67,6 @@ export async function GET(request: Request) {
       });
     }
     
-    if (transcript.length === 0) throw new Error("Failed to parse transcript XML");
-
     return NextResponse.json({ transcript });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
