@@ -22,7 +22,10 @@ export async function GET(request: Request) {
     const playerResponse = JSON.parse(match[1]);
     const tracks = playerResponse.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     
-    if (!tracks || tracks.length === 0) throw new Error("No captions found for video");
+    if (!tracks || tracks.length === 0) {
+      // DUMP the HTML to see what we are getting! Or dump the playerResponse
+      return NextResponse.json({ error: "No captions found for video", playerResponseKeys: Object.keys(playerResponse), hasCaptions: !!playerResponse.captions, isPlayable: playerResponse.playabilityStatus?.status });
+    }
     
     // Find English track or fallback to first
     let track = tracks.find((t: any) => t.languageCode === 'en' || t.languageCode === 'en-US' || t.languageCode === 'en-GB');
