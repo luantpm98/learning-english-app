@@ -7,16 +7,18 @@ export async function GET(request: Request) {
   if (!videoId) return NextResponse.json({ error: 'Missing videoId' }, { status: 400 });
 
   const urls = [
-    `https://www.youtube.com/watch?v=${videoId}`,
+    `https://m.youtube.com/watch?v=${videoId}`,
+    `https://www.youtube.com/watch?v=${videoId}`
   ];
 
   let playerResponse: any = null;
+  let status = 'UNKNOWN';
 
   for (const url of urls) {
     try {
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
           'Accept-Language': 'en-US,en;q=0.9',
           'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+478; YSC=1; SOCS=CAI'
         }
@@ -29,18 +31,14 @@ export async function GET(request: Request) {
           playerResponse = parsed;
           break; // Found working response!
         } else {
-           console.log("No captions in playerResponse. playabilityStatus:", parsed.playabilityStatus?.status);
+           status = parsed.playabilityStatus?.status;
         }
-      } else {
-        console.log("No ytInitialPlayerResponse match for url", url);
       }
-    } catch (e) {
-      console.log('Failed fetching from url', url, e);
-    }
+    } catch (e) {}
   }
 
   if (!playerResponse || !playerResponse.captions) {
-    return NextResponse.json({ error: 'No captions found or blocked by YouTube' }, { status: 400 });
+    return NextResponse.json({ error: 'No captions found. Status: ' + status }, { status: 400 });
   }
 
   try {
