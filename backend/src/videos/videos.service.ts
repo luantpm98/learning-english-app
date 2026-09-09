@@ -182,8 +182,7 @@ export class VideosService {
             let actualEndTime = Math.min(rawEndTime, nextStartTime);
             if (actualEndTime < startTime) actualEndTime = startTime + 0.1;
             
-            const text = String(item.text || '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").trim().replace(/
-/g, ' ');
+            const text = String(item.text || '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").trim().replace(/\n/g, ' ');
             
             return {
               startTime: isNaN(startTime) ? 0 : startTime,
