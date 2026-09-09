@@ -21,14 +21,11 @@ export async function GET(request: Request) {
     const data = await response.json();
     
     if (!data.success || !data.transcript) {
-      return NextResponse.json({ error: 'Failed to fetch transcript from RapidAPI' }, { status: 400 });
+      return NextResponse.json({ error: 'Failed to fetch transcript from RapidAPI: ' + JSON.stringify(data) }, { status: 400 });
     }
 
-    // Convert RapidAPI format to youtube-transcript format
-    // RapidAPI returns offset/duration in seconds as strings: "3.04"
-    // Backend expects them in milliseconds as numbers (it will divide by 1000 later)
     const transcript = data.transcript.map((item: any) => ({
-      text: item.text.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+      text: String(item.text || '').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
       duration: parseFloat(item.duration) * 1000,
       offset: parseFloat(item.offset) * 1000
     }));
