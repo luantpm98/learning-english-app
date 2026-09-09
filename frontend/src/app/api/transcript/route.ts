@@ -6,68 +6,33 @@ export async function GET(request: Request) {
   
   if (!videoId) return NextResponse.json({ error: 'Missing videoId' }, { status: 400 });
 
-  const urls = [
-    `https://m.youtube.com/watch?v=${videoId}`,
-    `https://www.youtube.com/watch?v=${videoId}`
-  ];
-
-  let playerResponse: any = null;
-  let status = 'UNKNOWN';
-
-  for (const url of urls) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+478; YSC=1; SOCS=CAI'
-        }
-      });
-      const html = await response.text();
-      const match = html.match(/ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+(?:meta|head)|<\/script|\n)/);
-      if (match) {
-        const parsed = JSON.parse(match[1]);
-        if (parsed.captions) {
-          playerResponse = parsed;
-          break; // Found working response!
-        } else {
-           status = parsed.playabilityStatus?.status;
-        }
-      }
-    } catch (e) {}
-  }
-
-  if (!playerResponse || !playerResponse.captions) {
-    return NextResponse.json({ error: 'No captions found. Status: ' + status }, { status: 400 });
-  }
-
   try {
-    const tracks = playerResponse.captions.playerCaptionsTracklistRenderer.captionTracks;
-    let track = tracks.find((t: any) => t.languageCode === 'en' || t.languageCode === 'en-US' || t.languageCode === 'en-GB');
-    if (!track) track = tracks[0];
+    const url = `https://youtube-transcript3.p.rapidapi.com/api/transcript-with-url?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D${videoId}&flat_text=false&lang=en`;
     
-    const xmlResponse = await fetch(track.baseUrl);
-    const xmlText = await xmlResponse.text();
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-rapidapi-host': 'youtube-transcript3.p.rapidapi.com',
+        'x-rapidapi-key': '8aec6454ffmsh254d9e2a11ca4bdp19adebjsne80b0c64a362'
+      }
+    });
+
+    const data = await response.json();
     
-    const transcript: any[] = [];
-    const regex = /<text\s+start="([\d.]+)"\s+dur="([\d.]+)"[^>]*>(.*?)<\/text>/g;
-    let xmlMatch;
-    
-    while ((xmlMatch = regex.exec(xmlText)) !== null) {
-      const text = xmlMatch[3]
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'");
-        
-      transcript.push({
-        offset: parseFloat(xmlMatch[1]) * 1000,
-        duration: parseFloat(xmlMatch[2]) * 1000,
-        text: text
-      });
+    if (!data.success || !data.transcript) {
+      return NextResponse.json({ error: 'Failed to fetch transcript from RapidAPI' }, { status: 400 });
     }
-    
+
+    // Convert RapidAPI format to youtube-transcript format
+    // RapidAPI returns offset/duration in seconds as strings: "3.04"
+    // Backend expects them in milliseconds as numbers (it will divide by 1000 later)
+    const transcript = data.transcript.map((item: any) => ({
+      text: item.text.replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+      duration: parseFloat(item.duration) * 1000,
+      offset: parseFloat(item.offset) * 1000
+    }));
+
     return NextResponse.json({ transcript });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
