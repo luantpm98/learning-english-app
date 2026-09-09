@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { YoutubeTranscript } from 'youtube-transcript';
+import * as https from 'https';
 
 @Injectable()
 export class VideosService {
@@ -43,8 +44,16 @@ export class VideosService {
     } catch (error: any) {
       console.log('Direct fetch failed, trying proxy...');
       try {
-        const response = await fetch(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${youtubeId}`);
-        const data = await response.json();
+        const data: any = await new Promise((resolve, reject) => {
+          https.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${youtubeId}`, (res) => {
+            let body = '';
+            res.on('data', (chunk) => body += chunk);
+            res.on('end', () => {
+              try { resolve(JSON.parse(body)); } catch (e) { reject(e); }
+            });
+          }).on('error', reject);
+        });
+
         if (data && data.transcript && Array.isArray(data.transcript)) {
            transcriptItems = data.transcript;
         } else {
