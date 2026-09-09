@@ -148,7 +148,7 @@ export default function VideoDetailPage() {
       const untranslated = video.subtitles.filter(s => !s.translation);
       if (untranslated.length > 0) {
          const chunkSize = 200;
-         const chunks = [];
+         const chunks: any[] = [];
          for (let i = 0; i < untranslated.length; i += chunkSize) {
             chunks.push(untranslated.slice(i, i + chunkSize));
          }
@@ -156,13 +156,13 @@ export default function VideoDetailPage() {
          const translateChunks = async () => {
             const newVideo = { ...video };
             for (const chunk of chunks) {
-               const texts = chunk.map(s => s.text);
+               const texts = chunk.map((s: any) => s.text);
                try {
                  const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: texts.join('\n') });
                  const translatedTexts = (res.data.text || "").split('\n');
                  let j = 0;
                  newVideo.subtitles = newVideo.subtitles.map(s => {
-                    if (!s.translation && chunk.find(c => c.id === s.id)) {
+                    if (!s.translation && chunk.find((c: any) => c.id === s.id)) {
                        s.translation = translatedTexts[j] || "Lỗi dịch thuật";
                        j++;
                     }
