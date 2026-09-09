@@ -12,6 +12,20 @@ class CreateVideoDto {
 @ApiTags('Videos')
 @Controller('videos')
 export class VideosController {
+  @Get('test-proxy/:id')
+  async testProxy(@Param('id') id: string) {
+    const https = require('https');
+    return new Promise((resolve, reject) => {
+      https.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${id}`, (res: any) => {
+        let body = '';
+        res.on('data', (chunk: any) => body += chunk);
+        res.on('end', () => {
+          try { resolve(JSON.parse(body)); } catch (e) { resolve({ error: e.message, body }); }
+        });
+      }).on('error', (e: any) => resolve({ error: e.message }));
+    });
+  }
+
   constructor(private readonly videosService: VideosService) {}
 
   @Get('search')
