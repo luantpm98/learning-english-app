@@ -8,8 +8,6 @@ export async function GET(request: Request) {
 
   const urls = [
     `https://www.youtube.com/watch?v=${videoId}`,
-    `https://corsproxy.io/?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`
   ];
 
   let playerResponse: any = null;
@@ -20,6 +18,7 @@ export async function GET(request: Request) {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept-Language': 'en-US,en;q=0.9',
+          'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+478; YSC=1; SOCS=CAI'
         }
       });
       const html = await response.text();
@@ -29,7 +28,11 @@ export async function GET(request: Request) {
         if (parsed.captions) {
           playerResponse = parsed;
           break; // Found working response!
+        } else {
+           console.log("No captions in playerResponse. playabilityStatus:", parsed.playabilityStatus?.status);
         }
+      } else {
+        console.log("No ytInitialPlayerResponse match for url", url);
       }
     } catch (e) {
       console.log('Failed fetching from url', url, e);
