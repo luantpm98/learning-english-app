@@ -141,8 +141,19 @@ export class VideosService {
     let transcriptItems: any[] = [];
     try {
       transcriptItems = await YoutubeTranscript.fetchTranscript(youtubeId);
-    } catch (error) {
-      console.error('Failed to fetch transcript:', error);
+    } catch (error: any) {
+      console.log('Direct fetch failed, trying proxy...', error.message);
+      try {
+        const axios = require('axios');
+        const res = await axios.default.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${youtubeId}`);
+        if (res.data && res.data.transcript) {
+           transcriptItems = res.data.transcript;
+        } else {
+           throw new Error("Proxy returned no transcript");
+        }
+      } catch (proxyError: any) {
+         console.error('Proxy fetch failed:', proxyError.message);
+      }
     }
 
     return this.prisma.video.create({
