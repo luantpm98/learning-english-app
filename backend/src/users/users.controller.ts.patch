@@ -1,0 +1,21 @@
+--- backend/src/users/users.controller.ts
++++ backend/src/users/users.controller.ts
+@@ -70,13 +70,14 @@
+ 
+-  @Get(':id/progress/video/:videoId')
++  @Post(':id/progress/video/:videoId')
+   async updateVideoProgress(
+     @Param('id', ParseIntPipe) id: number,
+-    @Param('videoId', ParseIntPipe) videoId: number
++    @Param('videoId', ParseIntPipe) videoId: number,
++    @Body('progressTime') progressTime?: number
+   ) {
+     return this.prisma.userProgress.upsert({
+       where: { userId_videoId: { userId: id, videoId: videoId } },
+-      update: { lastWatchedAt: new Date() },
+-      create: { userId: id, videoId: videoId }
++      update: { lastWatchedAt: new Date(), progressPercent: progressTime },
++      create: { userId: id, videoId: videoId, progressPercent: progressTime }
+     });
+   }
+ }

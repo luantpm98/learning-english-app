@@ -1,0 +1,15 @@
+--- backend/src/users/users.controller.ts
++++ backend/src/users/users.controller.ts
+@@ -70,6 +70,14 @@
+ 
++  @Get(':id/progress/video/:videoId')
++  async getVideoProgress(
++    @Param('id', ParseIntPipe) id: number,
++    @Param('videoId', ParseIntPipe) videoId: number
++  ) {
++    return this.prisma.userProgress.findUnique({
++      where: { userId_videoId: { userId: id, videoId: videoId } }
++    });
++  }
++
+   @Post(':id/progress/video/:videoId')

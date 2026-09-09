@@ -1,0 +1,23 @@
+--- backend/src/videos/videos.controller.ts
++++ backend/src/videos/videos.controller.ts
+@@ -1,3 +1,4 @@
+ import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
+ import { VideosService } from './videos.service.js';
++import axios from 'axios';
+ 
+@@ -37,2 +38,15 @@
+   }
++
++  @Post('translate')
++  async translateText(@Body('text') text: string) {
++    try {
++      const encodedText = encodeURIComponent(text);
++      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=vi&dt=t&q=${encodedText}`;
++      const res = await axios.get(url);
++      const translated = res.data[0].map((t: any) => t[0]).join('');
++      return { text: translated };
++    } catch (e) {
++      return { text: "Lỗi dịch thuật" };
++    }
++  }
+ }

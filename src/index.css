@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+}
+
+/* Dark theme (default) */
+:root, [data-theme="dark"] {
+  --background: #0c0d14;
+  --foreground: #f0f2f8;
+  --card: #13141f;
+  --card-foreground: #e8eaf2;
+  --primary: #4ade80;
+  --primary-foreground: #052010;
+  --secondary: #1e2030;
+  --secondary-foreground: #a0a8c0;
+  --muted: #181928;
+  --muted-foreground: #6b7494;
+  --accent: #818cf8;
+  --accent-foreground: #f0f2f8;
+  --border: #1e2235;
+  --ring: #4ade80;
+  --radius: 10px;
+}
+
+/* Light theme */
+[data-theme="light"] {
+  --background: #f5f6fa;
+  --foreground: #0f1117;
+  --card: #ffffff;
+  --card-foreground: #1a1d2e;
+  --primary: #16a34a;
+  --primary-foreground: #ffffff;
+  --secondary: #eef0f7;
+  --secondary-foreground: #4a5270;
+  --muted: #e8eaf4;
+  --muted-foreground: #7880a0;
+  --accent: #4f46e5;
+  --accent-foreground: #ffffff;
+  --border: #dde0ee;
+  --ring: #16a34a;
+  --radius: 10px;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2d42 transparent;
+}
+
+[data-theme="light"] * {
+  scrollbar-color: #c8cce0 transparent;
+}
+
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2a2d42; border-radius: 999px; }
+[data-theme="light"] *::-webkit-scrollbar-thumb { background: #c8cce0; }
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+}

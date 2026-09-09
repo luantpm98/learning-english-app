@@ -1,0 +1,145 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                   Int                   @id @default(autoincrement())
+  username             String                @unique
+  password             String
+  name                 String?
+  progress             UserProgress[]
+  pronunciationRecords PronunciationRecord[]
+  channels             Channel[]             @relation("UserChannels")
+  phrases              Phrase[]
+  wordReviews          WordReview[]
+  studyActivities      StudyActivity[]
+}
+
+model StudyActivity {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  date        DateTime @db.Date
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model WordReview {
+  id             Int        @id @default(autoincrement())
+  userId         Int
+  vocabularyId   Int
+  nextReviewDate DateTime
+  status         String     @default("LEARNING") // LEARNING, REVIEWING, MASTERED
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vocabulary     Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vocabularyId])
+}
+
+model Channel {
+  id               Int      @id @default(autoincrement())
+  youtubeChannelId String   @unique
+  name             String
+  thumbnail        String?
+  subCount         String?
+  users            User[]   @relation("UserChannels")
+  videos           Video[]
+}
+
+model Video {
+  id                   Int                   @id @default(autoincrement())
+  youtubeId            String                @unique
+  title                String
+  level                String?
+  thumbnail            String?
+  duration             String?
+  author               String?
+  channelId            Int?
+  playlistId           String?
+  playlistName         String?
+  channel              Channel?              @relation(fields: [channelId], references: [id])
+  subtitles            Subtitle[]
+  pronunciationRecords PronunciationRecord[]
+  phrases              Phrase[]
+  progress             UserProgress[]
+}
+
+model Subtitle {
+  id                   Int                   @id @default(autoincrement())
+  videoId              Int
+  startTime            Float
+  endTime              Float
+  text                 String
+  translation          String?
+  video                Video                 @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  pronunciationRecords PronunciationRecord[]
+}
+
+model VocabularySet {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  description String?
+  thumbnail   String?
+  words       Vocabulary[]
+}
+
+model Vocabulary {
+  id                   Int            @id @default(autoincrement())
+  word                 String
+  definition           String
+  translation          String?
+  phonetic             String?
+  audioUrl             String?
+  imageUrl             String?
+  setId                Int?
+  set                  VocabularySet? @relation(fields: [setId], references: [id], onDelete: Cascade)
+  wordReviews          WordReview[]
+}
+
+model UserProgress {
+  id                   Int                   @id @default(autoincrement())
+  userId               Int
+  videoId              Int
+  progressPercent      Float?
+  lastWatchedAt        DateTime              @default(now())
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video                Video                 @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+}
+
+model PronunciationRecord {
+  id                   Int                   @id @default(autoincrement())
+  userId               Int
+  videoId              Int
+  subtitleId           Int
+  s3Url                String
+  score                Float
+  feedback             Json?
+  createdAt            DateTime              @default(now())
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video                Video                 @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  subtitle             Subtitle              @relation(fields: [subtitleId], references: [id], onDelete: Cascade)
+}
+
+model Phrase {
+  id                   Int                   @id @default(autoincrement())
+  userId               Int
+  videoId              Int?
+  text                 String
+  translation          String?
+  startTime            Float?
+  endTime              Float?
+  createdAt            DateTime              @default(now())
+  
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video                Video?                @relation(fields: [videoId], references: [id], onDelete: Cascade)
+}
