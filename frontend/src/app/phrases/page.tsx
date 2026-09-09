@@ -32,7 +32,7 @@ export default function PhrasesPage() {
         return;
       }
       const user = JSON.parse(stored);
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/phrases?userId=${user.id}`);
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/phrases?userId=${user.id}`);
       setPhrases(res.data);
     } catch (e) {
       console.error(e);
@@ -42,7 +42,7 @@ export default function PhrasesPage() {
   const deletePhrase = async (id: number) => {
     if (!confirm("Remove this phrase?")) return;
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/phrases/${id}`);
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/phrases/${id}`);
       fetchPhrases();
     } catch (e) {
       console.error(e);

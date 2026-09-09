@@ -27,7 +27,7 @@ export default function FlashcardLearnPage() {
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/vocabulary-sets/${id}`).then((res) => {
+      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabulary-sets/${id}`).then((res) => {
         const shuffled = [...res.data.words].sort(() => 0.5 - Math.random());
         setWords(shuffled);
       }).catch(console.error);
@@ -142,7 +142,7 @@ export default function FlashcardLearnPage() {
                        onClick={(e) => {
                          e.stopPropagation();
                          e.currentTarget.innerText = "Dịch...";
-                         axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: currentWord.word + ": " + currentWord.definition })
+                         axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: currentWord.word + ": " + currentWord.definition })
                            .then(res => {
                               const newWords = [...words];
                               newWords[currentIndex].translation = res.data.text;

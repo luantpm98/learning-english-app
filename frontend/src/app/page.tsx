@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   const fetchDashboard = async (id: number) => {
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/users/${id}/dashboard`);
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${id}/dashboard`);
       setData(res.data);
     } catch (e) {
       console.error(e);

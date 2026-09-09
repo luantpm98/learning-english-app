@@ -66,7 +66,7 @@ export default function VideoDetailPage() {
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/${id}`).then((res) => {
+      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/${id}`).then((res) => {
         const data = res.data;
         data.subtitles = data.subtitles.sort((a: Subtitle, b: Subtitle) => a.startTime - b.startTime);
         setVideo(data);
@@ -80,7 +80,7 @@ export default function VideoDetailPage() {
   // Load progress
   useEffect(() => {
     if (video && user) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/users/${user.id}/progress/video/${video.id}`)
+      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${user.id}/progress/video/${video.id}`)
         .then(res => {
            if (res.data && res.data.progressPercent) {
               setStartSeconds(res.data.progressPercent);
@@ -107,7 +107,7 @@ export default function VideoDetailPage() {
       progressSaveTimer.current = setInterval(() => {
         if (user && video && typeof player.getCurrentTime === 'function') {
           try {
-            axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/users/${user.id}/progress/video/${video.id}`, {
+            axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${user.id}/progress/video/${video.id}`, {
               progressPercent: player.getCurrentTime(),
               progressTime: player.getCurrentTime()
             }).catch(() => {});
@@ -158,7 +158,7 @@ export default function VideoDetailPage() {
             for (const chunk of chunks) {
                const texts = chunk.map((s: any) => s.text);
                try {
-                 const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: texts.join('\n') });
+                 const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: texts.join('\n') });
                  const translatedTexts = (res.data.text || "").split('\n');
                  let j = 0;
                  newVideo.subtitles = newVideo.subtitles.map(s => {
@@ -174,7 +174,7 @@ export default function VideoDetailPage() {
                }
             }
             // Save to backend silently after all chunks
-            axios.put(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/${video.id}/subtitles`, { subtitles: newVideo.subtitles }).catch(()=>{});
+            axios.put(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/${video.id}/subtitles`, { subtitles: newVideo.subtitles }).catch(()=>{});
          };
          translateChunks();
       }
@@ -232,7 +232,7 @@ export default function VideoDetailPage() {
   const handleTranslate = async (sub: Subtitle, index: number) => {
     setTranslating(prev => ({ ...prev, [sub.id]: true }));
     try {
-       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: sub.text });
+       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: sub.text });
        if (video) {
          const newVideo = { ...video };
          newVideo.subtitles[index].translation = res.data.text;
@@ -247,7 +247,7 @@ export default function VideoDetailPage() {
   const handleSavePhrase = async (sub: Subtitle) => {
     if (!user) return alert("Please login");
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/phrases`, {
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`, {
         userId: user.id,
         videoId: video!.id,
         text: sub.text,

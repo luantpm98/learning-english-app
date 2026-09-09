@@ -45,7 +45,7 @@ export default function ReflexTrainingPage() {
       const stored = localStorage.getItem("user");
       if (!stored) return;
       const user = JSON.parse(stored);
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/phrases`);
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`);
       const userPhrases = res.data.filter((p: any) => p.userId === user.id);
       setPhrases(userPhrases);
       setQuestionCount(Math.min(10, userPhrases.length)); // default to 10 or max
@@ -93,7 +93,7 @@ export default function ReflexTrainingPage() {
       const user = stored ? JSON.parse(stored) : null;
       if (!user) return alert("Please login");
 
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/phrases`, {
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`, {
         userId: user.id,
         text: newPhrase,
         translation: newTrans,

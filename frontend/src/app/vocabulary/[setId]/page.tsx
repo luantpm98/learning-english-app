@@ -35,7 +35,7 @@ export default function VocabularySetPage() {
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/vocabulary-sets/${id}`).then((res) => {
+      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabulary-sets/${id}`).then((res) => {
         setSet(res.data);
       }).catch((e) => {
         console.error(e);
@@ -52,7 +52,7 @@ export default function VocabularySetPage() {
       const untranslated = set.words.filter(w => !w.translation);
       if (untranslated.length > 0) {
         const texts = untranslated.map(w => w.word + ": " + w.definition);
-        axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: texts.join('\n') })
+        axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: texts.join('\n') })
           .then(res => {
             const translatedTexts = (res.data.text || "").split('\n');
             const newSet = { ...set };
@@ -62,7 +62,7 @@ export default function VocabularySetPage() {
                  w.translation = translatedTexts[j] || "Lỗi dịch thuật";
                  j++;
                  // Save to DB
-                 axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/vocabularies/${w.id}`, { translation: w.translation }).catch(()=>{});
+                 axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabularies/${w.id}`, { translation: w.translation }).catch(()=>{});
               }
               return w;
             });
@@ -135,7 +135,7 @@ export default function VocabularySetPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.currentTarget.innerText = "Dịch...";
-                      axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos/translate`, { text: v.word + ": " + v.definition })
+                      axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: v.word + ": " + v.definition })
                         .then(res => {
                            v.translation = res.data.text;
                            if (set) {

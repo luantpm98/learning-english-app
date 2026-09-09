@@ -42,7 +42,7 @@ export default function VideoLibraryPage() {
       if (history.length > 0) {
         // Pick up to 3 random topics from history
         const shuffled = [...history].sort(() => 0.5 - Math.random()).slice(0, 3);
-        const promises = shuffled.map(q => axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/search?q=${encodeURIComponent(q)}`));
+        const promises = shuffled.map(q => axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=${encodeURIComponent(q)}`));
         const results = await Promise.all(promises);
         let combined: any[] = [];
         results.forEach(res => combined.push(...res.data));
@@ -51,7 +51,7 @@ export default function VideoLibraryPage() {
         setRecommendations(combined);
       } else {
         // Default fallback for new users
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/search?q=english%20listening`);
+        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=english%20listening`);
         setRecommendations(res.data);
       }
     } catch(e) {
@@ -68,8 +68,8 @@ export default function VideoLibraryPage() {
       }
       const user = JSON.parse(stored);
       const [vRes, cRes] = await Promise.all([
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos`),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/channels?userId=${user.id}`)
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/channels?userId=${user.id}`)
       ]);
       
       let savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "null");
@@ -100,8 +100,8 @@ export default function VideoLibraryPage() {
     setLoading(true);
     try {
       const [vRes, cRes] = await Promise.all([
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/search?q=${encodeURIComponent(searchQuery)}`),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/search-channel?q=${encodeURIComponent(searchQuery)}`)
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=${encodeURIComponent(searchQuery)}`),
+        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search-channel?q=${encodeURIComponent(searchQuery)}`)
       ]);
       const combined = [
         ...cRes.data.map((c: any) => ({ type: 'channel', data: c })),
@@ -120,7 +120,7 @@ export default function VideoLibraryPage() {
     try {
       const stored = localStorage.getItem("user");
       const user = stored ? JSON.parse(stored) : {id: 1};
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/channels/subscribe`, {
+      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/channels/subscribe`, {
         userId: user.id,
         youtubeChannelId: channel.channelId,
         name: channel.name,
@@ -139,7 +139,7 @@ export default function VideoLibraryPage() {
     try {
       const stored = localStorage.getItem("user");
       const user = stored ? JSON.parse(stored) : {id: 1};
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/channels/${id}/unsubscribe?userId=${user.id}`);
+      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/channels/${id}/unsubscribe?userId=${user.id}`);
       fetchSaved();
     } catch (e) {
       console.error(e);
@@ -151,7 +151,7 @@ export default function VideoLibraryPage() {
     setChannelContent(null);
     setLoadingChannel(true);
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/channel-videos?q=${encodeURIComponent(channel.channelId || channel.name)}`);
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/channel-videos?q=${encodeURIComponent(channel.channelId || channel.name)}`);
       setChannelContent(res.data);
     } catch (e) {
       console.error(e);
@@ -165,7 +165,7 @@ export default function VideoLibraryPage() {
     setActivePlaylistTitle(playlist.title);
     setLoadingPlaylist(true);
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}`}/videos/playlist-videos?playlistId=${playlist.id}`);
+      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/playlist-videos?playlistId=${playlist.id}`);
       setPlaylistVideos(res.data);
     } catch (e) {
       console.error(e);
@@ -181,7 +181,7 @@ export default function VideoLibraryPage() {
       if (author) payload.author = author;
       if (playlistId) payload.playlistId = playlistId;
       if (playlistName) payload.playlistName = playlistName;
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos`, payload);
+      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`, payload);
       router.push(`/videos/${res.data.id}`);
     } catch (e) {
       console.error(e);
@@ -203,7 +203,7 @@ export default function VideoLibraryPage() {
         const payload: any = { youtubeId: v.youtubeId, title: v.title, author: v.author };
         if (activePlaylistId) payload.playlistId = activePlaylistId;
         if (activePlaylistTitle) payload.playlistName = activePlaylistTitle;
-        const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"}/videos`, payload);
+        const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`, payload);
         
         if (!savedIds.includes(res.data.id)) {
           savedIds.push(res.data.id);
