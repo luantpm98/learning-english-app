@@ -4,12 +4,12 @@ export declare class PronunciationController {
     constructor(pronService: PronunciationService);
     assess(file: any, userId: number, videoId: number, subtitleId: number, referenceText: string): Promise<{
         id: number;
+        videoId: number;
         s3Url: string;
         score: number;
-        feedback: import("@prisma/client/runtime/library").JsonValue | null;
+        feedback: string | null;
         createdAt: Date;
         userId: number;
-        videoId: number;
         subtitleId: number;
     }>;
 }

@@ -1,4 +1,5 @@
 "use client";
+import { API_URL } from "../../utils/storage";
 
 import { useState } from "react";
 import axios from "axios";
@@ -16,7 +17,7 @@ export default function AuthPage() {
     setError("");
     const endpoint = isLogin ? "/auth/login" : "/auth/register";
     try {
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}${endpoint}`, { username, password });
+      const res = await axios.post(`${API_URL}${endpoint}`, { username, password });
       localStorage.setItem("user", JSON.stringify(res.data));
       router.push("/");
       window.dispatchEvent(new Event("storage"));

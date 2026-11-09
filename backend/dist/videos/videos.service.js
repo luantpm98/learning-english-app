@@ -11,6 +11,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { YoutubeTranscript } from 'youtube-transcript';
 import { Innertube } from 'youtubei.js';
+import https from 'https';
+import axios from 'axios';
 const fixUrl = (url) => url?.startsWith("//") ? "https:" + url : url;
 let VideosService = class VideosService {
     prisma;
@@ -20,7 +22,12 @@ let VideosService = class VideosService {
         this.initYT();
     }
     async initYT() {
-        this.yt = await Innertube.create();
+        try {
+            this.yt = await Innertube.create();
+        }
+        catch (e) {
+            console.warn('Innertube init warning:', e.message);
+        }
     }
     async searchYoutube(query) {
         if (!this.yt)
@@ -110,79 +117,178 @@ let VideosService = class VideosService {
             author: v.author?.name || ''
         }));
     }
+    decodeHtmlEntities(str) {
+        return String(str || '')
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
+            .replace(/&apos;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+            .trim()
+            .replace(/\s+/g, ' ');
+    }
+    formatTranscriptItems(transcriptItems) {
+        return transcriptItems
+            .map((item, index, arr) => {
+            let offsetMs = Number(item.offset);
+            let durationMs = Number(item.duration);
+            const startTime = offsetMs / 1000;
+            const rawEndTime = (offsetMs + durationMs) / 1000;
+            const nextStartTime = index < arr.length - 1 ? Number(arr[index + 1].offset) / 1000 : rawEndTime;
+            let actualEndTime = Math.min(rawEndTime, nextStartTime);
+            if (isNaN(actualEndTime) || actualEndTime <= startTime) {
+                actualEndTime = (isNaN(startTime) ? 0 : startTime) + 2.5;
+            }
+            const text = this.decodeHtmlEntities(item.text);
+            return {
+                startTime: isNaN(startTime) ? 0 : startTime,
+                endTime: isNaN(actualEndTime) ? 2.5 : actualEndTime,
+                text,
+            };
+        })
+            .filter((s) => s.text.length > 0);
+    }
+    async fetchSubtitlesForYoutubeId(youtubeId) {
+        let transcriptItems = [];
+        try {
+            transcriptItems = await YoutubeTranscript.fetchTranscript(youtubeId, { lang: 'en' });
+        }
+        catch {
+            try {
+                transcriptItems = await YoutubeTranscript.fetchTranscript(youtubeId);
+            }
+            catch (err) {
+                console.log(`Direct YoutubeTranscript failed for ${youtubeId}:`, err.message);
+            }
+        }
+        if (!transcriptItems || transcriptItems.length === 0) {
+            try {
+                const url = `https://youtube-transcript3.p.rapidapi.com/api/transcript-with-url?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D${youtubeId}&flat_text=false&lang=en`;
+                const res = await axios.get(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-rapidapi-host': 'youtube-transcript3.p.rapidapi.com',
+                        'x-rapidapi-key': process.env.RAPIDAPI_KEY || '8aec6454ffmsh254d9e2a11ca4bdp19adebjsne80b0c64a362',
+                    },
+                    timeout: 12000,
+                });
+                if (res.data?.success && Array.isArray(res.data?.transcript) && res.data.transcript.length > 0) {
+                    transcriptItems = res.data.transcript.map((item) => ({
+                        text: item.text,
+                        duration: parseFloat(item.duration) * 1000,
+                        offset: parseFloat(item.offset) * 1000,
+                    }));
+                }
+            }
+            catch (rapidErr) {
+                console.log(`RapidAPI transcript failed for ${youtubeId}:`, rapidErr.message);
+            }
+        }
+        if (!transcriptItems || transcriptItems.length === 0) {
+            try {
+                const data = await new Promise((resolve, reject) => {
+                    https.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${youtubeId}`, (res) => {
+                        let body = '';
+                        res.on('data', (chunk) => (body += chunk));
+                        res.on('end', () => {
+                            try {
+                                resolve(JSON.parse(body));
+                            }
+                            catch (e) {
+                                reject(e);
+                            }
+                        });
+                    }).on('error', reject);
+                });
+                if (data && Array.isArray(data.transcript) && data.transcript.length > 0) {
+                    transcriptItems = data.transcript;
+                }
+            }
+            catch (proxyError) {
+                console.error(`Vercel proxy fetch failed for ${youtubeId}:`, proxyError.message);
+            }
+        }
+        return this.formatTranscriptItems(transcriptItems || []);
+    }
     async findAll() {
-        return this.prisma.video.findMany();
+        return this.prisma.video.findMany({
+            orderBy: { id: 'desc' },
+        });
     }
     async findOne(id) {
-        const video = await this.prisma.video.findUnique({
+        let video = await this.prisma.video.findUnique({
             where: { id },
-            include: { subtitles: true },
+            include: { subtitles: { orderBy: { startTime: 'asc' } } },
         });
         if (!video)
             throw new NotFoundException('Video not found');
+        if (!video.subtitles || video.subtitles.length === 0) {
+            const fetchedSubs = await this.fetchSubtitlesForYoutubeId(video.youtubeId);
+            if (fetchedSubs.length > 0) {
+                await this.prisma.subtitle.createMany({
+                    data: fetchedSubs.map((s) => ({
+                        videoId: video.id,
+                        startTime: s.startTime,
+                        endTime: s.endTime,
+                        text: s.text,
+                    })),
+                });
+                video = await this.prisma.video.findUnique({
+                    where: { id },
+                    include: { subtitles: { orderBy: { startTime: 'asc' } } },
+                });
+            }
+        }
         return video;
     }
     async createFromYoutube(youtubeId, title, level, author, playlistId, playlistName) {
         const existingVideo = await this.prisma.video.findUnique({
-            where: { youtubeId }
+            where: { youtubeId },
+            include: { subtitles: { orderBy: { startTime: 'asc' } } },
         });
         if (existingVideo) {
             if ((author && !existingVideo.author) || (playlistId && !existingVideo.playlistId)) {
-                return this.prisma.video.update({
+                await this.prisma.video.update({
                     where: { id: existingVideo.id },
                     data: {
                         author: author || existingVideo.author,
                         playlistId: playlistId || existingVideo.playlistId,
                         playlistName: playlistName || existingVideo.playlistName,
-                    }
+                    },
                 });
             }
-            return existingVideo;
-        }
-        let transcriptItems = [];
-        try {
-            transcriptItems = await YoutubeTranscript.fetchTranscript(youtubeId);
-        }
-        catch (error) {
-            console.log('Direct fetch failed, trying proxy...', error.message);
-            try {
-                const axios = require('axios');
-                const res = await axios.default.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${youtubeId}`);
-                if (res.data && res.data.transcript) {
-                    transcriptItems = res.data.transcript;
-                }
-                else {
-                    throw new Error("Proxy returned no transcript");
+            if (!existingVideo.subtitles || existingVideo.subtitles.length === 0) {
+                const fetchedSubs = await this.fetchSubtitlesForYoutubeId(youtubeId);
+                if (fetchedSubs.length > 0) {
+                    await this.prisma.subtitle.createMany({
+                        data: fetchedSubs.map((s) => ({
+                            videoId: existingVideo.id,
+                            startTime: s.startTime,
+                            endTime: s.endTime,
+                            text: s.text,
+                        })),
+                    });
                 }
             }
-            catch (proxyError) {
-                console.error('Proxy fetch failed:', proxyError.message);
-            }
+            return this.findOne(existingVideo.id);
         }
+        const formattedSubtitles = await this.fetchSubtitlesForYoutubeId(youtubeId);
         return this.prisma.video.create({
             data: {
                 youtubeId,
                 title,
-                level,
+                level: level || 'Intermediate',
+                thumbnail: `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`,
                 author,
                 playlistId,
                 playlistName,
                 subtitles: {
-                    create: transcriptItems.map((item, index, arr) => {
-                        const startTime = item.offset / 1000;
-                        const rawEndTime = (item.offset + item.duration) / 1000;
-                        const nextStartTime = index < arr.length - 1 ? arr[index + 1].offset / 1000 : rawEndTime;
-                        let actualEndTime = Math.min(rawEndTime, nextStartTime);
-                        if (actualEndTime < startTime)
-                            actualEndTime = startTime + 0.1;
-                        return {
-                            startTime,
-                            endTime: actualEndTime,
-                            text: item.text.replace(/&amp;/g, '&').replace(/&#39;/g, "'").trim().replace(/\n/g, ' '),
-                        };
-                    }),
+                    create: formattedSubtitles,
                 },
             },
+            include: { subtitles: { orderBy: { startTime: 'asc' } } },
         });
     }
     async remove(id) {

@@ -1,17 +1,24 @@
-import { useState } from "react";
-import { defaultVideos as videos, type Subtitle } from "../data";
+import { useState, useEffect, type Dispatch, type SetStateAction } from "react";
+import { defaultVideos, type Video, type Subtitle } from "../data";
 import { type Page } from "../App";
 import PronunciationTab from "../components/PronunciationTab";
+import { fetchYoutubeSubtitlesClient } from "./VideosPage";
 
-type Props = { videoId: string; navigate: (p: Page, id?: string) => void };
+type Props = {
+  videoId: string;
+  navigate: (p: Page, id?: string) => void;
+  videos?: Video[];
+  setVideos?: Dispatch<SetStateAction<Video[]>>;
+};
 type Tab = "subtitles" | "pronunciation" | "dictation" | "transcribe";
 
-export default function VideoDetailPage({ videoId, navigate }: Props) {
-  const video = videos.find((v: typeof videos[0]) => v.id === videoId);
+export default function VideoDetailPage({ videoId, navigate, videos = defaultVideos, setVideos }: Props) {
+  const video = videos.find((v) => v.id === videoId);
   const [tab, setTab] = useState<Tab>("subtitles");
   const [showVi, setShowVi] = useState(true);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [activeSubId, setActiveSubId] = useState<string | null>(null);
+  const [loadingSubs, setLoadingSubs] = useState(false);
 
   // Dictation tab
   const [dictInput, setDictInput] = useState("");
@@ -22,6 +29,22 @@ export default function VideoDetailPage({ videoId, navigate }: Props) {
   const [transInput, setTransInput] = useState("");
   const [transChecked, setTransChecked] = useState(false);
   const [transSubIdx, setTransSubIdx] = useState(0);
+
+  // Auto-fetch subtitles if a video has 0 subtitles
+  useEffect(() => {
+    if (video && video.subtitles.length === 0 && !loadingSubs) {
+      setLoadingSubs(true);
+      fetchYoutubeSubtitlesClient(video.youtubeId)
+        .then((subs) => {
+          if (subs.length > 0 && setVideos) {
+            setVideos((prev) =>
+              prev.map((v) => (v.id === video.id ? { ...v, subtitles: subs } : v))
+            );
+          }
+        })
+        .finally(() => setLoadingSubs(false));
+    }
+  }, [video?.id, video?.youtubeId]);
 
   if (!video) {
     return (
@@ -47,12 +70,6 @@ export default function VideoDetailPage({ videoId, navigate }: Props) {
 
   const dictSub = video.subtitles[dictSubIdx];
   const transSub = video.subtitles[transSubIdx];
-
-  const getWordDiff = (target: string, input: string) => {
-    const tw = target.split(/\s+/);
-    const iw = input.split(/\s+/);
-    return tw.map((w, i) => ({ word: w, correct: iw[i]?.toLowerCase() === w.toLowerCase() }));
-  };
 
   const tabLabels: Record<Tab, string> = {
     subtitles: "📄 Subtitles",
@@ -112,11 +129,15 @@ export default function VideoDetailPage({ videoId, navigate }: Props) {
             {/* SUBTITLES */}
             {tab === "subtitles" && (
               <div>
-                {video.subtitles.length === 0 ? (
+                {loadingSubs ? (
+                  <div className="text-center py-10 text-[var(--muted-foreground)]">
+                    <div className="text-3xl mb-2 animate-spin inline-block">⏳</div>
+                    <p className="text-sm">Đang tự động tải phụ đề từ YouTube...</p>
+                  </div>
+                ) : video.subtitles.length === 0 ? (
                   <div className="text-center py-10 text-[var(--muted-foreground)]">
                     <div className="text-3xl mb-2">📝</div>
-                    <p className="text-sm">Video này chưa có subtitle.</p>
-                    <p className="text-xs mt-1 opacity-60">Subtitle sẽ được tải tự động trong phiên bản đầy đủ.</p>
+                    <p className="text-sm">Video này hiện chưa có phụ đề trên YouTube.</p>
                   </div>
                 ) : (
                   <>
@@ -146,7 +167,7 @@ export default function VideoDetailPage({ videoId, navigate }: Props) {
                             </span>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-[var(--foreground)] leading-relaxed">{sub.en}</p>
-                              {showVi && <p className="text-xs text-[var(--accent)] mt-1 leading-relaxed">{sub.vi}</p>}
+                              {showVi && sub.vi && <p className="text-xs text-[var(--accent)] mt-1 leading-relaxed">{sub.vi}</p>}
                             </div>
                             <button
                               onClick={(e) => { e.stopPropagation(); toggleSave(sub); }}
@@ -241,7 +262,7 @@ export default function VideoDetailPage({ videoId, navigate }: Props) {
                     </div>
                     <div className="bg-[var(--secondary)] border border-[var(--border)] rounded-xl p-4 mb-4">
                       <div className="text-xs text-[var(--muted-foreground)] mb-1.5">Nghĩa tiếng Việt:</div>
-                      <p className="text-sm text-[var(--accent)] font-medium leading-relaxed">{transSub.vi}</p>
+                      <p className="text-sm text-[var(--accent)] font-medium leading-relaxed">{transSub.vi || transSub.en}</p>
                     </div>
                     <textarea
                       value={transInput}

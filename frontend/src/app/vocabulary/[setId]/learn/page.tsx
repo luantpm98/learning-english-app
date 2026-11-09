@@ -1,8 +1,8 @@
 "use client";
-import { getUserKey } from "../../../../utils/storage";
+import { getUserKey, API_URL } from "../../../../utils/storage";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 
@@ -27,7 +27,7 @@ export default function FlashcardLearnPage() {
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabulary-sets/${id}`).then((res) => {
+      axios.get(`${API_URL}/vocabulary-sets/${id}`).then((res) => {
         const shuffled = [...res.data.words].sort(() => 0.5 - Math.random());
         setWords(shuffled);
       }).catch(console.error);
@@ -78,10 +78,6 @@ export default function FlashcardLearnPage() {
     );
   }
 
-  // Use placehold.co or Unsplash as fallback
-  const fallbackImage = `https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800&q=80`; // generic book image or similar
-  const image = currentWord.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentWord.word)}&size=512&background=random&font-size=0.3`;
-
   return (
     <div className="p-4 md:p-8 h-full flex flex-col relative max-w-3xl mx-auto w-full">
       <div className="flex justify-between items-center mb-6">
@@ -120,15 +116,15 @@ export default function FlashcardLearnPage() {
 
           {/* Back */}
           <div className="absolute inset-0 backface-hidden rotate-y-180 bg-card border-2 border-primary rounded-3xl flex flex-col shadow-lg overflow-hidden">
-                  <div className="flex-1 w-full relative rounded-2xl overflow-hidden bg-black mt-4">
-                    <img
-                      src={currentWord.imageUrl || `https://loremflickr.com/400/300/${encodeURIComponent(currentWord.word)}`}
-                      onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentWord.word)}&size=512&background=random`; }}
-                      alt={currentWord.word}
-                      className="w-full h-full object-cover opacity-80"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
-                  </div>
+            <div className="flex-1 w-full relative rounded-2xl overflow-hidden bg-black mt-4">
+              <img
+                src={currentWord.imageUrl || `https://loremflickr.com/400/300/${encodeURIComponent(currentWord.word)}`}
+                onError={(e) => { e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentWord.word)}&size=512&background=random`; }}
+                alt={currentWord.word}
+                className="w-full h-full object-cover opacity-80"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+            </div>
             
             <div className="h-1/2 w-full flex flex-col items-center justify-start p-6 text-center relative z-10 -mt-10">
               <h2 className="text-4xl md:text-5xl font-bold text-primary mb-2 drop-shadow-sm">{currentWord.word}</h2>
@@ -142,7 +138,7 @@ export default function FlashcardLearnPage() {
                        onClick={(e) => {
                          e.stopPropagation();
                          e.currentTarget.innerText = "Dịch...";
-                         axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: currentWord.word + ": " + currentWord.definition })
+                         axios.post(`${API_URL}/videos/translate`, { text: currentWord.word + ": " + currentWord.definition })
                            .then(res => {
                               const newWords = [...words];
                               newWords[currentIndex].translation = res.data.text;
@@ -168,7 +164,6 @@ export default function FlashcardLearnPage() {
       <div className="flex justify-center gap-4 mt-auto">
         <button 
           onClick={() => {
-            // Save word logic
             const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
             if (!saved.find((w: any) => w.id === currentWord.id)) {
               saved.push(currentWord);
@@ -176,13 +171,13 @@ export default function FlashcardLearnPage() {
             }
             handleNext(false);
           }}
-          className={`flex-1 max-w-[200px] py-4 rounded-2xl font-bold text-lg transition-all opacity-100 translate-y-0 bg-blue-100 text-blue-600 hover:bg-blue-200 border border-blue-200`}
+          className="flex-1 max-w-[200px] py-4 rounded-2xl font-bold text-lg transition-all opacity-100 translate-y-0 bg-blue-100 text-blue-600 hover:bg-blue-200 border border-blue-200"
         >
           Lưu từ
         </button>
         <button 
           onClick={() => handleNext(true)}
-          className={`flex-1 max-w-[200px] py-4 rounded-2xl font-bold text-lg transition-all opacity-100 translate-y-0 bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200`}
+          className="flex-1 max-w-[200px] py-4 rounded-2xl font-bold text-lg transition-all opacity-100 translate-y-0 bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200"
         >
           Bỏ qua (Got it)
         </button>

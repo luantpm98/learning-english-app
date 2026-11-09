@@ -5,9 +5,13 @@ export declare class AuthService {
     register(data: any): Promise<{
         id: number;
         username: string;
+        name: string | null;
+        role: string;
     }>;
     login(data: any): Promise<{
         id: number;
         username: string;
+        name: string | null;
+        role: string;
     }>;
 }

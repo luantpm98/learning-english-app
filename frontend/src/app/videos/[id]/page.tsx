@@ -1,5 +1,5 @@
 "use client";
-import { getUserKey } from "../../../utils/storage";
+import { getUserKey, API_URL } from "../../../utils/storage";
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -56,7 +56,6 @@ export default function VideoDetailPage() {
 
   const listRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const progressSaveTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -66,9 +65,35 @@ export default function VideoDetailPage() {
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/${id}`).then((res) => {
+      axios.get(`${API_URL}/videos/${id}`).then(async (res) => {
         const data = res.data;
-        data.subtitles = data.subtitles.sort((a: Subtitle, b: Subtitle) => a.startTime - b.startTime);
+        let subs: Subtitle[] = (data.subtitles || []).sort((a: Subtitle, b: Subtitle) => a.startTime - b.startTime);
+
+        // If backend returned 0 subtitles, fetch directly from Next.js /api/transcript route
+        if (subs.length === 0 && data.youtubeId) {
+          try {
+            const trRes = await axios.get(`/api/transcript?videoId=${data.youtubeId}`);
+            if (Array.isArray(trRes.data?.transcript) && trRes.data.transcript.length > 0) {
+              subs = trRes.data.transcript.map((item: any, idx: number, arr: any[]) => {
+                const startTime = Number(item.offset) / 1000;
+                const rawEnd = (Number(item.offset) + Number(item.duration)) / 1000;
+                const nextStart = idx < arr.length - 1 ? Number(arr[idx + 1].offset) / 1000 : rawEnd;
+                const endTime = Math.max(startTime + 0.2, Math.min(rawEnd, nextStart));
+                return {
+                  id: idx + 1,
+                  startTime: isNaN(startTime) ? 0 : startTime,
+                  endTime: isNaN(endTime) ? 2.5 : endTime,
+                  text: String(item.text || "").trim(),
+                  translation: null,
+                };
+              });
+            }
+          } catch (trErr) {
+            console.warn("Fallback /api/transcript failed:", trErr);
+          }
+        }
+
+        data.subtitles = subs;
         setVideo(data);
       }).catch((e) => {
         console.error(e);
@@ -80,7 +105,7 @@ export default function VideoDetailPage() {
   // Load progress
   useEffect(() => {
     if (video && user) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${user.id}/progress/video/${video.id}`)
+      axios.get(`${API_URL}/users/${user.id}/progress/video/${video.id}`)
         .then(res => {
            if (res.data && res.data.progressPercent) {
               setStartSeconds(res.data.progressPercent);
@@ -107,13 +132,13 @@ export default function VideoDetailPage() {
       progressSaveTimer.current = setInterval(() => {
         if (user && video && typeof player.getCurrentTime === 'function') {
           try {
-            axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${user.id}/progress/video/${video.id}`, {
+            axios.post(`${API_URL}/users/${user.id}/progress/video/${video.id}`, {
               progressPercent: player.getCurrentTime(),
               progressTime: player.getCurrentTime()
             }).catch(() => {});
           } catch (e) {}
         }
-      }, 10000); // save progress every 10 seconds
+      }, 10000);
     }
     return () => {
       cancelAnimationFrame(animationFrameId);
@@ -158,7 +183,7 @@ export default function VideoDetailPage() {
             for (const chunk of chunks) {
                const texts = chunk.map((s: any) => s.text);
                try {
-                 const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: texts.join('\n') });
+                 const res = await axios.post(`${API_URL}/videos/translate`, { text: texts.join('\n') });
                  const translatedTexts = (res.data.text || "").split('\n');
                  let j = 0;
                  newVideo.subtitles = newVideo.subtitles.map(s => {
@@ -168,18 +193,17 @@ export default function VideoDetailPage() {
                     }
                     return s;
                  });
-                 setVideo({ ...newVideo }); // Update UI progressively
+                 setVideo({ ...newVideo });
                } catch (e) {
                  console.error("Batch translate failed", e);
                }
             }
-            // Save to backend silently after all chunks
-            axios.put(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/${video.id}/subtitles`, { subtitles: newVideo.subtitles }).catch(()=>{});
+            axios.put(`${API_URL}/videos/${video.id}/subtitles`, { subtitles: newVideo.subtitles }).catch(()=>{});
          };
          translateChunks();
       }
     }
-  }, [video?.id]); // Only run once when video is loaded
+  }, [video?.id]);
 
   const isAutoScrolling = useRef(false);
 
@@ -232,7 +256,7 @@ export default function VideoDetailPage() {
   const handleTranslate = async (sub: Subtitle, index: number) => {
     setTranslating(prev => ({ ...prev, [sub.id]: true }));
     try {
-       const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: sub.text });
+       const res = await axios.post(`${API_URL}/videos/translate`, { text: sub.text });
        if (video) {
          const newVideo = { ...video };
          newVideo.subtitles[index].translation = res.data.text;
@@ -247,7 +271,7 @@ export default function VideoDetailPage() {
   const handleSavePhrase = async (sub: Subtitle) => {
     if (!user) return alert("Please login");
     try {
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`, {
+      await axios.post(`${API_URL}/phrases`, {
         userId: user.id,
         videoId: video!.id,
         text: sub.text,

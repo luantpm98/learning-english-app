@@ -26,12 +26,12 @@ export declare class UsersController {
         phrases: {
             id: number;
             startTime: number | null;
+            videoId: number | null;
             endTime: number | null;
             text: string;
             translation: string | null;
             createdAt: Date;
             userId: number;
-            videoId: number | null;
         }[];
         streak: number;
         recentVideo: {
@@ -49,15 +49,15 @@ export declare class UsersController {
     }>;
     getVideoProgress(id: number, videoId: number): Promise<{
         id: number;
-        userId: number;
         videoId: number;
+        userId: number;
         progressPercent: number | null;
         lastWatchedAt: Date;
     } | null>;
     updateVideoProgress(id: number, videoId: number, progressTime?: number): Promise<{
         id: number;
-        userId: number;
         videoId: number;
+        userId: number;
         progressPercent: number | null;
         lastWatchedAt: Date;
     }>;

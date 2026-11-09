@@ -1,6 +1,6 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 generator client {
@@ -12,6 +12,7 @@ model User {
   username             String                @unique
   password             String
   name                 String?
+  role                 String                @default("USER") // ADMIN, USER
   progress             UserProgress[]
   pronunciationRecords PronunciationRecord[]
   channels             Channel[]             @relation("UserChannels")
@@ -23,7 +24,7 @@ model User {
 model StudyActivity {
   id          Int      @id @default(autoincrement())
   userId      Int
-  date        DateTime @db.Date
+  date        DateTime
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -123,7 +124,7 @@ model PronunciationRecord {
   subtitleId           Int
   s3Url                String
   score                Float
-  feedback             Json?
+  feedback             String?
   createdAt            DateTime              @default(now())
   user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   video                Video                 @relation(fields: [videoId], references: [id], onDelete: Cascade)

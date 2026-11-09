@@ -1,5 +1,5 @@
 "use client";
-import { getUserKey } from "../../utils/storage";
+import { getUserKey, API_URL } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -21,20 +21,17 @@ export default function VocabularySetsPage() {
   const [savedWordsCount, setSavedWordsCount] = useState(0);
 
   useEffect(() => {
-    // Load sets
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/vocabulary-sets`).then((res) => {
+    axios.get(`${API_URL}/vocabulary-sets`).then((res) => {
       setSets(res.data);
     }).catch(console.error);
 
-    // Mock daily words (take 5 random words from a set, ideally done on backend)
-    axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/vocabulary-sets/1`).then(res => {
+    axios.get(`${API_URL}/vocabulary-sets/1`).then(res => {
       if (res.data?.words) {
         const shuffled = [...res.data.words].sort(() => 0.5 - Math.random());
         setDailyWords(shuffled.slice(0, 5));
       }
     }).catch(() => {});
 
-    // Load saved words count
     const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
     setSavedWordsCount(saved.length);
   }, []);

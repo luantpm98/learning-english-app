@@ -18,12 +18,12 @@ export declare class PhrasesController {
     } & {
         id: number;
         startTime: number | null;
+        videoId: number | null;
         endTime: number | null;
         text: string;
         translation: string | null;
         createdAt: Date;
         userId: number;
-        videoId: number | null;
     })[]>;
     create(body: {
         videoId: number;
@@ -34,21 +34,21 @@ export declare class PhrasesController {
     }): Promise<{
         id: number;
         startTime: number | null;
+        videoId: number | null;
         endTime: number | null;
         text: string;
         translation: string | null;
         createdAt: Date;
         userId: number;
-        videoId: number | null;
     }>;
     remove(id: number): Promise<{
         id: number;
         startTime: number | null;
+        videoId: number | null;
         endTime: number | null;
         text: string;
         translation: string | null;
         createdAt: Date;
         userId: number;
-        videoId: number | null;
     }>;
 }

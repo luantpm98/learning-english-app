@@ -1,4 +1,5 @@
 "use client";
+import { API_URL } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -32,7 +33,7 @@ export default function PhrasesPage() {
         return;
       }
       const user = JSON.parse(stored);
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/phrases?userId=${user.id}`);
+      const res = await axios.get(`${API_URL}/phrases?userId=${user.id}`);
       setPhrases(res.data);
     } catch (e) {
       console.error(e);
@@ -42,7 +43,7 @@ export default function PhrasesPage() {
   const deletePhrase = async (id: number) => {
     if (!confirm("Remove this phrase?")) return;
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/phrases/${id}`);
+      await axios.delete(`${API_URL}/phrases/${id}`);
       fetchPhrases();
     } catch (e) {
       console.error(e);
@@ -69,8 +70,8 @@ export default function PhrasesPage() {
               onClick={() => {
                 const utterance = new SpeechSynthesisUtterance(phrase.text);
                 utterance.lang = 'en-US';
-                utterance.volume = 1; // Maximum volume
-                utterance.rate = 0.9; // Slightly slower for better clarity
+                utterance.volume = 1;
+                utterance.rate = 0.9;
                 window.speechSynthesis.speak(utterance);
               }}
               className="absolute top-4 right-4 bg-secondary text-foreground w-8 h-8 rounded-full flex items-center justify-center opacity-50 group-hover:opacity-100 hover:bg-primary hover:text-primary-foreground transition-all"

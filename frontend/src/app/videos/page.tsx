@@ -1,9 +1,8 @@
 "use client";
-import { getUserKey } from "../../utils/storage";
+import { getUserKey, API_URL } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function VideoLibraryPage() {
@@ -40,18 +39,15 @@ export default function VideoLibraryPage() {
     const history = JSON.parse(localStorage.getItem(getUserKey("searchHistory")) || "[]");
     try {
       if (history.length > 0) {
-        // Pick up to 3 random topics from history
         const shuffled = [...history].sort(() => 0.5 - Math.random()).slice(0, 3);
-        const promises = shuffled.map(q => axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=${encodeURIComponent(q)}`));
+        const promises = shuffled.map(q => axios.get(`${API_URL}/videos/search?q=${encodeURIComponent(q)}`));
         const results = await Promise.all(promises);
         let combined: any[] = [];
         results.forEach(res => combined.push(...res.data));
-        // Shuffle and take 12
         combined = combined.sort(() => 0.5 - Math.random()).slice(0, 12);
         setRecommendations(combined);
       } else {
-        // Default fallback for new users
-        const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=english%20listening`);
+        const res = await axios.get(`${API_URL}/videos/search?q=english%20listening`);
         setRecommendations(res.data);
       }
     } catch(e) {
@@ -68,8 +64,8 @@ export default function VideoLibraryPage() {
       }
       const user = JSON.parse(stored);
       const [vRes, cRes] = await Promise.all([
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/channels?userId=${user.id}`)
+        axios.get(`${API_URL}/videos`),
+        axios.get(`${API_URL}/channels?userId=${user.id}`)
       ]);
       
       let savedIds = JSON.parse(localStorage.getItem(getUserKey("savedVideoIds")) || "null");
@@ -88,7 +84,6 @@ export default function VideoLibraryPage() {
     e.preventDefault();
     if (!searchQuery.trim()) return;
     
-    // Save to history
     const history = JSON.parse(localStorage.getItem(getUserKey("searchHistory")) || "[]");
     const query = searchQuery.trim().toLowerCase();
     if (!history.includes(query)) {
@@ -100,8 +95,8 @@ export default function VideoLibraryPage() {
     setLoading(true);
     try {
       const [vRes, cRes] = await Promise.all([
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search?q=${encodeURIComponent(searchQuery)}`),
-        axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/search-channel?q=${encodeURIComponent(searchQuery)}`)
+        axios.get(`${API_URL}/videos/search?q=${encodeURIComponent(searchQuery)}`),
+        axios.get(`${API_URL}/videos/search-channel?q=${encodeURIComponent(searchQuery)}`)
       ]);
       const combined = [
         ...cRes.data.map((c: any) => ({ type: 'channel', data: c })),
@@ -120,7 +115,7 @@ export default function VideoLibraryPage() {
     try {
       const stored = localStorage.getItem("user");
       const user = stored ? JSON.parse(stored) : {id: 1};
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/channels/subscribe`, {
+      await axios.post(`${API_URL}/channels/subscribe`, {
         userId: user.id,
         youtubeChannelId: channel.channelId,
         name: channel.name,
@@ -139,7 +134,7 @@ export default function VideoLibraryPage() {
     try {
       const stored = localStorage.getItem("user");
       const user = stored ? JSON.parse(stored) : {id: 1};
-      await axios.delete(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/channels/${id}/unsubscribe?userId=${user.id}`);
+      await axios.delete(`${API_URL}/channels/${id}/unsubscribe?userId=${user.id}`);
       fetchSaved();
     } catch (e) {
       console.error(e);
@@ -151,7 +146,7 @@ export default function VideoLibraryPage() {
     setChannelContent(null);
     setLoadingChannel(true);
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/channel-videos?q=${encodeURIComponent(channel.channelId || channel.name)}`);
+      const res = await axios.get(`${API_URL}/videos/channel-videos?q=${encodeURIComponent(channel.channelId || channel.name)}`);
       setChannelContent(res.data);
     } catch (e) {
       console.error(e);
@@ -165,7 +160,7 @@ export default function VideoLibraryPage() {
     setActivePlaylistTitle(playlist.title);
     setLoadingPlaylist(true);
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/videos/playlist-videos?playlistId=${playlist.id}`);
+      const res = await axios.get(`${API_URL}/videos/playlist-videos?playlistId=${playlist.id}`);
       setPlaylistVideos(res.data);
     } catch (e) {
       console.error(e);
@@ -181,7 +176,7 @@ export default function VideoLibraryPage() {
       if (author) payload.author = author;
       if (playlistId) payload.playlistId = playlistId;
       if (playlistName) payload.playlistName = playlistName;
-      const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`, payload);
+      const res = await axios.post(`${API_URL}/videos`, payload);
       router.push(`/videos/${res.data.id}`);
     } catch (e) {
       console.error(e);
@@ -203,7 +198,7 @@ export default function VideoLibraryPage() {
         const payload: any = { youtubeId: v.youtubeId, title: v.title, author: v.author };
         if (activePlaylistId) payload.playlistId = activePlaylistId;
         if (activePlaylistTitle) payload.playlistName = activePlaylistTitle;
-        const res = await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos`, payload);
+        const res = await axios.post(`${API_URL}/videos`, payload);
         
         if (!savedIds.includes(res.data.id)) {
           savedIds.push(res.data.id);
@@ -216,7 +211,7 @@ export default function VideoLibraryPage() {
     localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(savedIds));
     setImportingAll(false);
     alert(`Successfully added ${successCount}/${playlistVideos.length} videos to your library!`);
-    fetchSaved(); // refresh saved tab data just in case
+    fetchSaved();
   };
 
   const unsaveVideo = async (e: React.MouseEvent, id: number) => {
@@ -424,7 +419,6 @@ export default function VideoLibraryPage() {
               <div className="text-center py-20 text-muted-foreground">Loading channel content...</div>
             ) : channelContent ? (
               <div className="space-y-12">
-                {/* Playlists */}
                 {channelContent.playlists.length > 0 && (
                   <div>
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">📑 Playlists</h2>
@@ -447,7 +441,6 @@ export default function VideoLibraryPage() {
                   </div>
                 )}
 
-                {/* Latest Videos */}
                 <div>
                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">🔥 Latest Videos</h2>
                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

@@ -1,5 +1,5 @@
 "use client";
-import { getUserKey } from "../../../utils/storage";
+import { getUserKey, API_URL } from "../../../utils/storage";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -30,12 +30,11 @@ export default function VocabularySetPage() {
   const id = params.setId as string;
   
   const [set, setSet] = useState<VocabularySet | null>(null);
-
   const [savedWords, setSavedWords] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
-      axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabulary-sets/${id}`).then((res) => {
+      axios.get(`${API_URL}/vocabulary-sets/${id}`).then((res) => {
         setSet(res.data);
       }).catch((e) => {
         console.error(e);
@@ -46,23 +45,21 @@ export default function VocabularySetPage() {
     setSavedWords(saved);
   }, [id, router]);
 
-  // Auto translate missing words
   useEffect(() => {
     if (set && set.words.length > 0) {
       const untranslated = set.words.filter(w => !w.translation);
       if (untranslated.length > 0) {
-        const texts = untranslated.map(w => w.word + ": " + w.definition);
-        axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: texts.join('\n') })
+        const texts = untranslated.slice(0, 100).map(w => w.word + ": " + w.definition);
+        axios.post(`${API_URL}/videos/translate`, { text: texts.join('\n') })
           .then(res => {
             const translatedTexts = (res.data.text || "").split('\n');
             const newSet = { ...set };
             let j = 0;
             newSet.words = newSet.words.map(w => {
-              if (!w.translation) {
+              if (!w.translation && j < translatedTexts.length) {
                  w.translation = translatedTexts[j] || "Lỗi dịch thuật";
                  j++;
-                 // Save to DB
-                 axios.post(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/vocabularies/${w.id}`, { translation: w.translation }).catch(()=>{});
+                 axios.post(`${API_URL}/vocabularies/${w.id}`, { translation: w.translation }).catch(()=>{});
               }
               return w;
             });
@@ -135,7 +132,7 @@ export default function VocabularySetPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.currentTarget.innerText = "Dịch...";
-                      axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/videos/translate`, { text: v.word + ": " + v.definition })
+                      axios.post(`${API_URL}/videos/translate`, { text: v.word + ": " + v.definition })
                         .then(res => {
                            v.translation = res.data.text;
                            if (set) {

@@ -26,7 +26,7 @@ export class PronunciationService {
           subtitleId,
           s3Url: 'local://mock',
           score: mockScore,
-          feedback: { message: 'Mocked feedback since Azure keys are missing' },
+          feedback: JSON.stringify({ message: 'Mocked feedback since Azure keys are missing' }),
         },
       });
     }
@@ -64,9 +64,9 @@ export class PronunciationService {
           userId,
           videoId,
           subtitleId,
-          s3Url: 'local://file-uploaded', // Replace with S3 logic later
+          s3Url: 'local://file-uploaded',
           score,
-          feedback: result,
+          feedback: JSON.stringify(result),
         },
       });
     } catch (error: any) {
@@ -75,4 +75,3 @@ export class PronunciationService {
     }
   }
 }
-

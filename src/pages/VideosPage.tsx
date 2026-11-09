@@ -1,8 +1,14 @@
-import { useState } from "react";
-import { defaultVideos, defaultChannels, topics, type Video, type Channel } from "../data";
+import { useState, type Dispatch, type SetStateAction } from "react";
+import { defaultVideos, defaultChannels, topics, type Video, type Channel, type Subtitle } from "../data";
 import { type Page } from "../App";
 
-type Props = { navigate: (p: Page, id?: string) => void };
+type Props = {
+  navigate: (p: Page, id?: string) => void;
+  videos?: Video[];
+  setVideos?: Dispatch<SetStateAction<Video[]>>;
+  channels?: Channel[];
+  setChannels?: Dispatch<SetStateAction<Channel[]>>;
+};
 type ModalType = "none" | "add-video" | "add-channel";
 
 function parseYoutubeId(url: string): string | null {
@@ -31,9 +37,63 @@ function parseChannelHandle(url: string): string | null {
   return null;
 }
 
-export default function VideosPage({ navigate }: Props) {
-  const [videos, setVideos] = useState<Video[]>(defaultVideos);
-  const [channels, setChannels] = useState<Channel[]>(defaultChannels);
+export async function fetchYoutubeSubtitlesClient(ytId: string): Promise<Subtitle[]> {
+  // 1. Try local NestJS backend first
+  try {
+    const res = await fetch(`http://localhost:3000/videos/transcript/${ytId}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.subtitles) && data.subtitles.length > 0) {
+        return data.subtitles.map((s: any, idx: number) => ({
+          id: `sub_${idx}_${Date.now()}`,
+          start: Math.floor(Number(s.startTime) || 0),
+          end: Math.ceil(Number(s.endTime) || (Number(s.startTime) + 3)),
+          en: String(s.text || ""),
+          vi: s.translation || "",
+        }));
+      }
+    }
+  } catch {}
+
+  // 2. Fallback to Vercel transcript API
+  try {
+    const res = await fetch(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${ytId}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.transcript) && data.transcript.length > 0) {
+        return data.transcript.map((item: any, idx: number) => {
+          const start = Math.floor(Number(item.offset) / 1000);
+          const end = Math.ceil((Number(item.offset) + Number(item.duration)) / 1000);
+          return {
+            id: `sub_${idx}_${Date.now()}`,
+            start: isNaN(start) ? 0 : start,
+            end: isNaN(end) || end <= start ? start + 3 : end,
+            en: String(item.text || "").replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"'),
+            vi: "",
+          };
+        });
+      }
+    }
+  } catch {}
+
+  return [];
+}
+
+export default function VideosPage({
+  navigate,
+  videos: propVideos,
+  setVideos: propSetVideos,
+  channels: propChannels,
+  setChannels: propSetChannels,
+}: Props) {
+  const [localVideos, setLocalVideos] = useState<Video[]>(defaultVideos);
+  const [localChannels, setLocalChannels] = useState<Channel[]>(defaultChannels);
+
+  const videos = propVideos ?? localVideos;
+  const setVideos = propSetVideos ?? setLocalVideos;
+  const channels = propChannels ?? localChannels;
+  const setChannels = propSetChannels ?? setLocalChannels;
+
   const [filterTopic, setFilterTopic] = useState("all");
   const [filterChannel, setFilterChannel] = useState("all");
   const [search, setSearch] = useState("");
@@ -59,7 +119,7 @@ export default function VideosPage({ navigate }: Props) {
     return matchTopic && matchChannel && matchSearch;
   });
 
-  const handleAddVideo = () => {
+  const handleAddVideo = async () => {
     setVideoError("");
     const ytId = parseYoutubeId(videoUrl.trim());
     if (!ytId) { setVideoError("Không tìm thấy YouTube video ID. Hãy kiểm tra lại đường dẫn."); return; }
@@ -67,7 +127,8 @@ export default function VideosPage({ navigate }: Props) {
     if (videos.some((v) => v.youtubeId === ytId)) { setVideoError("Video này đã có trong thư viện."); return; }
 
     setAddingVideo(true);
-    setTimeout(() => {
+    try {
+      const subs = await fetchYoutubeSubtitlesClient(ytId);
       const channelObj = channels.find((c) => c.id === videoChannel) || channels[0];
       const newVideo: Video = {
         id: `v${Date.now()}`,
@@ -75,16 +136,18 @@ export default function VideosPage({ navigate }: Props) {
         title: videoTitle.trim(),
         topicId: videoTopic,
         channelId: channelObj?.id ?? "c1",
-        duration: "—",
+        duration: subs.length > 0 ? `${Math.floor(subs[subs.length - 1].end / 60)}:${String(subs[subs.length - 1].end % 60).padStart(2, "0")}` : "—",
         thumbnail: `https://img.youtube.com/vi/${ytId}/mqdefault.jpg`,
-        subtitles: [],
+        subtitles: subs,
       };
       setVideos((prev) => [newVideo, ...prev]);
       setVideoUrl("");
       setVideoTitle("");
       setModal("none");
+      navigate("video-detail", newVideo.id);
+    } finally {
       setAddingVideo(false);
-    }, 600);
+    }
   };
 
   const handleAddChannel = () => {
@@ -226,8 +289,14 @@ export default function VideosPage({ navigate }: Props) {
                   {topic && (
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-medium text-black" style={{ backgroundColor: topic.color }}>{topic.name}</div>
                   )}
-                  {v.subtitles.length === 0 && (
-                    <div className="absolute top-2 right-2 bg-yellow-500/90 text-black text-[10px] px-2 py-0.5 rounded-full font-medium">No subs</div>
+                  {v.subtitles.length > 0 ? (
+                    <div className="absolute top-2 right-2 bg-emerald-500/90 text-black text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                      {v.subtitles.length} subs
+                    </div>
+                  ) : (
+                    <div className="absolute top-2 right-2 bg-blue-500/90 text-white text-[10px] px-2 py-0.5 rounded-full font-medium">
+                      Auto-sub
+                    </div>
                   )}
                 </div>
                 <div className="p-4">
@@ -326,7 +395,7 @@ export default function VideosPage({ navigate }: Props) {
                 disabled={addingVideo}
                 className="w-full py-3 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
-                {addingVideo ? "Đang thêm..." : "Thêm vào thư viện"}
+                {addingVideo ? "Đang tải phụ đề & thêm..." : "Thêm vào thư viện"}
               </button>
             </div>
           </div>
@@ -382,7 +451,6 @@ export default function VideosPage({ navigate }: Props) {
               </button>
             </div>
 
-            {/* Existing channels list */}
             {channels.length > 0 && (
               <div className="mt-5 border-t border-[var(--border)] pt-4">
                 <p className="text-xs text-[var(--muted-foreground)] mb-3">Kênh đã thêm ({channels.length})</p>

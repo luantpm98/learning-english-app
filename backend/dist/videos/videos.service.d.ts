@@ -28,6 +28,13 @@ export declare class VideosService {
         duration: any;
         author: any;
     }[]>;
+    private decodeHtmlEntities;
+    private formatTranscriptItems;
+    fetchSubtitlesForYoutubeId(youtubeId: string): Promise<{
+        startTime: number;
+        endTime: number;
+        text: string;
+    }[]>;
     findAll(): Promise<{
         id: number;
         youtubeId: string;
@@ -40,14 +47,14 @@ export declare class VideosService {
         playlistId: string | null;
         playlistName: string | null;
     }[]>;
-    findOne(id: number): Promise<{
+    findOne(id: number): Promise<({
         subtitles: {
             id: number;
             startTime: number;
+            videoId: number;
             endTime: number;
             text: string;
             translation: string | null;
-            videoId: number;
         }[];
     } & {
         id: number;
@@ -60,8 +67,17 @@ export declare class VideosService {
         channelId: number | null;
         playlistId: string | null;
         playlistName: string | null;
-    }>;
-    createFromYoutube(youtubeId: string, title: string, level?: string, author?: string, playlistId?: string, playlistName?: string): Promise<{
+    }) | null>;
+    createFromYoutube(youtubeId: string, title: string, level?: string, author?: string, playlistId?: string, playlistName?: string): Promise<({
+        subtitles: {
+            id: number;
+            startTime: number;
+            videoId: number;
+            endTime: number;
+            text: string;
+            translation: string | null;
+        }[];
+    } & {
         id: number;
         youtubeId: string;
         title: string;
@@ -72,7 +88,7 @@ export declare class VideosService {
         channelId: number | null;
         playlistId: string | null;
         playlistName: string | null;
-    }>;
+    }) | null>;
     remove(id: number): Promise<{
         id: number;
         youtubeId: string;
@@ -88,9 +104,9 @@ export declare class VideosService {
     updateSubtitleTranslation(id: number, translation: string): Promise<{
         id: number;
         startTime: number;
+        videoId: number;
         endTime: number;
         text: string;
         translation: string | null;
-        videoId: number;
     } | null>;
 }

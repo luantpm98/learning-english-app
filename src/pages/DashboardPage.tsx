@@ -1,7 +1,7 @@
-import { defaultVideos as videos, vocabulary, phrases, collectionWords } from "../data";
+import { defaultVideos, vocabulary, phrases, collectionWords, type Video } from "../data";
 import { type Page } from "../App";
 
-type Props = { navigate: (p: Page, id?: string) => void };
+type Props = { navigate: (p: Page, id?: string) => void; videos?: Video[] };
 
 const dueToday = vocabulary.filter((w) => w.nextReview <= "2026-08-30");
 const newWordsToday = collectionWords.filter((w) => w.level === 0).slice(0, 5);
@@ -15,7 +15,7 @@ const tips = [
 ];
 const todayTip = tips[new Date().getDay() % tips.length];
 
-export default function DashboardPage({ navigate }: Props) {
+export default function DashboardPage({ navigate, videos = defaultVideos }: Props) {
   return (
     <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-5xl mx-auto">
@@ -44,7 +44,7 @@ export default function DashboardPage({ navigate }: Props) {
         <div className="grid grid-cols-4 gap-4 mb-7">
           {[
             { label: "Từ đã học", value: vocabulary.length, sub: "trong bộ sưu tập", color: "var(--primary)", icon: "◈" },
-            { label: "Video đã xem", value: 12, sub: "tuần này", color: "var(--accent)", icon: "▶" },
+            { label: "Video trong kho", value: videos.length, sub: "sẵn sàng học", color: "var(--accent)", icon: "▶" },
             { label: "Đến hạn ôn", value: dueToday.length, sub: "từ hôm nay", color: "#f59e0b", icon: "◷" },
             { label: "Câu đã lưu", value: phrases.filter(p => p.saved).length, sub: "trong bộ sưu tập", color: "#f472b6", icon: "❝" },
           ].map((stat) => (
@@ -158,7 +158,7 @@ export default function DashboardPage({ navigate }: Props) {
             <button onClick={() => navigate("videos")} className="text-xs text-[var(--accent)] hover:underline">Xem tất cả →</button>
           </div>
           <div className="grid grid-cols-3 gap-4">
-            {videos.slice(0, 3).map((v: (typeof videos)[0]) => (
+            {videos.slice(0, 3).map((v) => (
               <button
                 key={v.id}
                 onClick={() => navigate("video-detail", v.id)}

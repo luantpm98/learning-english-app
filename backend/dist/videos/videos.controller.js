@@ -13,6 +13,7 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 import { Controller, Get, Post, Put, Body, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
 import { VideosService } from './videos.service.js';
 import axios from 'axios';
+import https from 'https';
 import { ApiTags, ApiOperation, ApiBody, ApiQuery } from '@nestjs/swagger';
 class CreateVideoDto {
     youtubeId;
@@ -21,6 +22,26 @@ class CreateVideoDto {
 }
 let VideosController = class VideosController {
     videosService;
+    async testProxy(id) {
+        return new Promise((resolve) => {
+            https.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${id}`, (res) => {
+                let body = '';
+                res.on('data', (chunk) => body += chunk);
+                res.on('end', () => {
+                    try {
+                        resolve(JSON.parse(body));
+                    }
+                    catch (e) {
+                        resolve({ error: e.message, body });
+                    }
+                });
+            }).on('error', (e) => resolve({ error: e.message }));
+        });
+    }
+    async getTranscriptByYoutubeId(youtubeId) {
+        const subtitles = await this.videosService.fetchSubtitlesForYoutubeId(youtubeId);
+        return { youtubeId, subtitles };
+    }
     constructor(videosService) {
         this.videosService = videosService;
     }
@@ -71,6 +92,21 @@ let VideosController = class VideosController {
         return this.videosService.remove(id);
     }
 };
+__decorate([
+    Get('test-proxy/:id'),
+    __param(0, Param('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "testProxy", null);
+__decorate([
+    Get('transcript/:youtubeId'),
+    ApiOperation({ summary: 'Fetch transcript directly by YouTube video ID' }),
+    __param(0, Param('youtubeId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], VideosController.prototype, "getTranscriptByYoutubeId", null);
 __decorate([
     Get('search'),
     ApiOperation({ summary: 'Search YouTube videos' }),

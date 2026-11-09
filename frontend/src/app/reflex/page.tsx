@@ -1,4 +1,5 @@
 "use client";
+import { API_URL } from "../../utils/storage";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -23,7 +24,7 @@ export default function ReflexTrainingPage() {
   
   // Settings
   const [isPlaying, setIsPlaying] = useState(false);
-  const [duration, setDuration] = useState(5); // 5 seconds
+  const [duration, setDuration] = useState(5);
   const [showEnglishFirst, setShowEnglishFirst] = useState(true);
   const [questionCount, setQuestionCount] = useState(10);
   const [poolType, setPoolType] = useState<"all" | "manual">("all");
@@ -45,10 +46,10 @@ export default function ReflexTrainingPage() {
       const stored = localStorage.getItem("user");
       if (!stored) return;
       const user = JSON.parse(stored);
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`);
+      const res = await axios.get(`${API_URL}/phrases`);
       const userPhrases = res.data.filter((p: any) => p.userId === user.id);
       setPhrases(userPhrases);
-      setQuestionCount(Math.min(10, userPhrases.length)); // default to 10 or max
+      setQuestionCount(Math.min(10, userPhrases.length));
     } catch (e) {
       console.error(e);
     }
@@ -63,7 +64,6 @@ export default function ReflexTrainingPage() {
       if (timeLeft > 0) {
         timer = setTimeout(() => setTimeLeft(t => t - 1), 1000);
       } else {
-        // Next slide
         if (currentIndex < Math.min(questionCount, filteredPhrases.length) - 1) {
           setCurrentIndex(c => c + 1);
           setTimeLeft(duration);
@@ -78,7 +78,6 @@ export default function ReflexTrainingPage() {
 
   const startTraining = () => {
     if (filteredPhrases.length === 0) return alert("No phrases to train in this pool!");
-    // Shuffle here if needed, but for now we just use the filtered list
     const limit = Math.min(questionCount, filteredPhrases.length);
     if (limit <= 0) return;
     setCurrentIndex(0);
@@ -93,7 +92,7 @@ export default function ReflexTrainingPage() {
       const user = stored ? JSON.parse(stored) : null;
       if (!user) return alert("Please login");
 
-      await axios.post(`${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}/phrases`, {
+      await axios.post(`${API_URL}/phrases`, {
         userId: user.id,
         text: newPhrase,
         translation: newTrans,

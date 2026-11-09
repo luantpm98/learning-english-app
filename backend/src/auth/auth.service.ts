@@ -15,11 +15,12 @@ export class AuthService {
       data: {
         username: data.username,
         password: hashedPassword,
-        name: data.username,
+        name: data.name || data.username,
+        role: data.role || 'USER',
       }
     });
 
-    return { id: user.id, username: user.username };
+    return { id: user.id, username: user.username, name: user.name, role: user.role };
   }
 
   async login(data: any) {
@@ -39,6 +40,6 @@ export class AuthService {
       create: { userId: user.id, date: today }
     });
 
-    return { id: user.id, username: user.username };
+    return { id: user.id, username: user.username, name: user.name, role: user.role };
   }
 }

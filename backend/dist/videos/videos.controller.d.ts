@@ -1,6 +1,15 @@
 import { VideosService } from './videos.service.js';
 export declare class VideosController {
     private readonly videosService;
+    testProxy(id: string): Promise<unknown>;
+    getTranscriptByYoutubeId(youtubeId: string): Promise<{
+        youtubeId: string;
+        subtitles: {
+            startTime: number;
+            endTime: number;
+            text: string;
+        }[];
+    }>;
     constructor(videosService: VideosService);
     search(query: string): Promise<{
         youtubeId: any;
@@ -38,14 +47,14 @@ export declare class VideosController {
         playlistId: string | null;
         playlistName: string | null;
     }[]>;
-    findOne(id: number): Promise<{
+    findOne(id: number): Promise<({
         subtitles: {
             id: number;
             startTime: number;
+            videoId: number;
             endTime: number;
             text: string;
             translation: string | null;
-            videoId: number;
         }[];
     } & {
         id: number;
@@ -58,8 +67,17 @@ export declare class VideosController {
         channelId: number | null;
         playlistId: string | null;
         playlistName: string | null;
-    }>;
-    create(createVideoDto: any): Promise<{
+    }) | null>;
+    create(createVideoDto: any): Promise<({
+        subtitles: {
+            id: number;
+            startTime: number;
+            videoId: number;
+            endTime: number;
+            text: string;
+            translation: string | null;
+        }[];
+    } & {
         id: number;
         youtubeId: string;
         title: string;
@@ -70,7 +88,7 @@ export declare class VideosController {
         channelId: number | null;
         playlistId: string | null;
         playlistName: string | null;
-    }>;
+    }) | null>;
     translateText(text: string): Promise<{
         text: any;
     }>;

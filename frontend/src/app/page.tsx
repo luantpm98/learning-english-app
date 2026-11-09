@@ -1,4 +1,5 @@
 "use client";
+import { API_URL } from "../utils/storage";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,7 +24,7 @@ export default function Dashboard() {
 
   const fetchDashboard = async (id: number) => {
     try {
-      const res = await axios.get(`${process.env.NEXT_PUBLIC_API_URL || `${process.env.NEXT_PUBLIC_API_URL || "https://learning-english-app-lqg7.onrender.com"}`}/users/${id}/dashboard`);
+      const res = await axios.get(`${API_URL}/users/${id}/dashboard`);
       setData(res.data);
     } catch (e) {
       console.error(e);

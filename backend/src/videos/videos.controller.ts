@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Body, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
 import { VideosService } from './videos.service.js';
 import axios from 'axios';
+import https from 'https';
 import { ApiTags, ApiOperation, ApiBody, ApiQuery } from '@nestjs/swagger';
 
 class CreateVideoDto {
@@ -14,16 +15,22 @@ class CreateVideoDto {
 export class VideosController {
   @Get('test-proxy/:id')
   async testProxy(@Param('id') id: string) {
-    const https = require('https');
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       https.get(`https://learning-english-app-henna.vercel.app/api/transcript?videoId=${id}`, (res: any) => {
         let body = '';
         res.on('data', (chunk: any) => body += chunk);
         res.on('end', () => {
-          try { resolve(JSON.parse(body)); } catch (e) { resolve({ error: e.message, body }); }
+          try { resolve(JSON.parse(body)); } catch (e: any) { resolve({ error: e.message, body }); }
         });
       }).on('error', (e: any) => resolve({ error: e.message }));
     });
+  }
+
+  @Get('transcript/:youtubeId')
+  @ApiOperation({ summary: 'Fetch transcript directly by YouTube video ID' })
+  async getTranscriptByYoutubeId(@Param('youtubeId') youtubeId: string) {
+    const subtitles = await this.videosService.fetchSubtitlesForYoutubeId(youtubeId);
+    return { youtubeId, subtitles };
   }
 
   constructor(private readonly videosService: VideosService) {}
@@ -109,8 +116,6 @@ export class VideosController {
   @Put(':id/subtitles')
   @ApiOperation({ summary: 'Update subtitles with translations' })
   async updateSubtitles(@Param('id', ParseIntPipe) id: number, @Body('subtitles') subtitles: any[]) {
-    // We can update each subtitle translation
-    // In a real app we'd use a transaction or upsert, for now just loop
     for (const sub of subtitles) {
       if (sub.id && sub.translation) {
         await this.videosService.updateSubtitleTranslation(sub.id, sub.translation);
@@ -125,4 +130,3 @@ export class VideosController {
     return this.videosService.remove(id);
   }
 }
-
