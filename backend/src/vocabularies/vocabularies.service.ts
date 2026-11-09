@@ -9,7 +9,15 @@ export class VocabulariesService {
     return this.prisma.vocabulary.findMany();
   }
 
-  async create(data: { word: string; definition: string; phonetic?: string; audioUrl?: string; imageUrl?: string }) {
+  async create(data: {
+    word: string;
+    definition: string;
+    translation?: string;
+    phonetic?: string;
+    audioUrl?: string;
+    imageUrl?: string;
+    setId?: number;
+  }) {
     return this.prisma.vocabulary.create({ data });
   }
 

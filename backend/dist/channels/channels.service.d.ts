@@ -4,8 +4,8 @@ export declare class ChannelsService {
     constructor(prisma: PrismaService);
     findAll(userId?: number): Promise<{
         id: number;
-        thumbnail: string | null;
         name: string;
+        thumbnail: string | null;
         youtubeChannelId: string;
         subCount: string | null;
     }[]>;
@@ -17,8 +17,8 @@ export declare class ChannelsService {
         subCount?: string;
     }): Promise<{
         id: number;
-        thumbnail: string | null;
         name: string;
+        thumbnail: string | null;
         youtubeChannelId: string;
         subCount: string | null;
     }>;

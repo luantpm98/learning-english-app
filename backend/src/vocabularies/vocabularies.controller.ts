@@ -15,7 +15,18 @@ export class VocabulariesController {
 
   @Post()
   @ApiOperation({ summary: 'Thêm từ vựng mới' })
-  create(@Body() body: { word: string; definition: string; phonetic?: string; audioUrl?: string; imageUrl?: string }) {
+  create(
+    @Body()
+    body: {
+      word: string;
+      definition: string;
+      translation?: string;
+      phonetic?: string;
+      audioUrl?: string;
+      imageUrl?: string;
+      setId?: number;
+    },
+  ) {
     return this.vocabsService.create(body);
   }
 

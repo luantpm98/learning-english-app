@@ -8,9 +8,9 @@ export declare class VocabularySetsService {
         };
     } & {
         id: number;
-        thumbnail: string | null;
         name: string;
         description: string | null;
+        thumbnail: string | null;
     })[]>;
     findOne(id: number): Promise<{
         words: {
@@ -25,8 +25,8 @@ export declare class VocabularySetsService {
         }[];
     } & {
         id: number;
-        thumbnail: string | null;
         name: string;
         description: string | null;
+        thumbnail: string | null;
     }>;
 }

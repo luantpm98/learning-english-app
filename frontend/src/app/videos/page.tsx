@@ -230,56 +230,56 @@ export default function VideoLibraryPage() {
   };
 
   return (
-    <div className="absolute inset-0 w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col pb-16 md:pb-0">
       {/* 4-English Style Header with Search */}
-      <div className="bg-card border-b border-border p-6 flex flex-col gap-6 shrink-0 shadow-sm z-10 sticky top-0">
+      <div className="bg-card border-b border-border p-4 md:p-6 flex flex-col gap-4 shrink-0 shadow-sm z-10 sticky top-0">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Video Library</h1>
+          <h1 className="text-xl md:text-3xl font-bold">Thư Viện Video Song Ngữ</h1>
         </div>
 
-        <form onSubmit={handleSearch} className="flex gap-4">
+        <form onSubmit={handleSearch} className="flex gap-2 md:gap-4">
           <div className="relative flex-1">
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground text-xl">🔍</span>
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-base md:text-xl">🔍</span>
             <input 
               type="text" 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search videos, channels, or paste YouTube URL..."
-              className="w-full pl-12 pr-4 py-4 rounded-full bg-background border-2 border-border focus:outline-none focus:border-primary text-lg transition-colors shadow-inner"
+              placeholder="Tìm video, kênh YouTube hoặc dán link..."
+              className="w-full pl-10 pr-4 py-2.5 md:py-3.5 rounded-full bg-background border-2 border-border focus:outline-none focus:border-primary text-sm md:text-base transition-colors"
             />
           </div>
-          <button type="submit" disabled={loading} className="bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:opacity-90 disabled:opacity-50 transition-opacity shadow-md">
-            {loading ? "..." : "Search"}
+          <button type="submit" disabled={loading} className="bg-primary text-primary-foreground px-5 md:px-8 py-2.5 md:py-3.5 rounded-full font-bold text-sm md:text-base hover:opacity-90 disabled:opacity-50 transition-opacity shadow-md shrink-0">
+            {loading ? "..." : "Tìm"}
           </button>
         </form>
 
-        <div className="flex gap-8 border-b border-border pb-1">
+        <div className="flex gap-5 md:gap-8 border-b border-border pb-1 overflow-x-auto no-scrollbar">
           <button 
-            className={`pb-3 font-bold text-lg transition-colors relative ${activeTab === 'discover' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`pb-2.5 font-bold text-sm md:text-base whitespace-nowrap transition-colors relative ${activeTab === 'discover' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => { setActiveTab('discover'); setActiveChannelId(null); }}
           >
-            Discover
+            Khám phá
             {activeTab === 'discover' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full"></div>}
           </button>
           <button 
-            className={`pb-3 font-bold text-lg transition-colors relative ${activeTab === 'channels' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`pb-2.5 font-bold text-sm md:text-base whitespace-nowrap transition-colors relative ${activeTab === 'channels' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => { setActiveTab('channels'); setActiveChannelId(null); }}
           >
-            My Channels ({myChannels.length})
+            Kênh theo dõi ({myChannels.length})
             {activeTab === 'channels' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full"></div>}
           </button>
           <button 
-            className={`pb-3 font-bold text-lg transition-colors relative ${activeTab === 'saved' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`pb-2.5 font-bold text-sm md:text-base whitespace-nowrap transition-colors relative ${activeTab === 'saved' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             onClick={() => { setActiveTab('saved'); setActiveChannelId(null); }}
           >
-            Saved Videos ({videos.length})
+            Video đã lưu ({videos.length})
             {activeTab === 'saved' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-t-full"></div>}
           </button>
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-6 md:p-8 bg-background">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-8 bg-background">
         
         {/* DISCOVER TAB */}
         {activeTab === 'discover' && !activeChannelId && (

@@ -1,0 +1,17 @@
+name: Keep Render Server Awake
+
+on:
+  schedule:
+    # Ping every 10 minutes so Render free tier never sleeps (15m idle timeout)
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Backend Health Endpoint
+        run: |
+          echo "Pinging Render backend..."
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://learning-english-app-lqg7.onrender.com/health || true
+          curl -s -o /dev/null -w "HTTP Status (root): %{http_code}\n" https://learning-english-app-lqg7.onrender.com/ || true

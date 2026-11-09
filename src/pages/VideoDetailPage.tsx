@@ -20,6 +20,9 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
   const [activeSubId, setActiveSubId] = useState<string | null>(null);
   const [loadingSubs, setLoadingSubs] = useState(false);
 
+  // Segment-bounded playback for iframe embed (start & end query params + nonce to reload segment)
+  const [segmentPlay, setSegmentPlay] = useState<{ start: number; end?: number; key: number } | null>(null);
+
   // Dictation tab
   const [dictInput, setDictInput] = useState("");
   const [dictChecked, setDictChecked] = useState(false);
@@ -60,6 +63,23 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
     );
   }
 
+  const playSingleSub = (sub: Subtitle) => {
+    setActiveSubId(sub.id);
+    setSegmentPlay({
+      start: Math.floor(sub.start),
+      end: Math.ceil(Math.max(sub.start + 1, sub.end)),
+      key: Date.now(),
+    });
+  };
+
+  const playFromSubContinuous = (sub: Subtitle) => {
+    setActiveSubId(sub.id);
+    setSegmentPlay({
+      start: Math.floor(sub.start),
+      key: Date.now(),
+    });
+  };
+
   const toggleSave = (sub: Subtitle) => {
     setSavedIds((prev) => {
       const next = new Set(prev);
@@ -77,6 +97,12 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
     dictation: "🎧 Chép chính tả",
     transcribe: "✍️ Ghi lại câu",
   };
+
+  const embedSrc = segmentPlay
+    ? `https://www.youtube.com/embed/${video.youtubeId}?enablejsapi=1&autoplay=1&start=${segmentPlay.start}${
+        segmentPlay.end ? `&end=${segmentPlay.end}` : ""
+      }`
+    : `https://www.youtube.com/embed/${video.youtubeId}?enablejsapi=1`;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -98,8 +124,9 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
           {/* YouTube embed */}
           <div className="bg-black flex-shrink-0 relative" style={{ paddingTop: "min(56.25%, 300px)" }}>
             <iframe
+              key={segmentPlay?.key || "default"}
               className="absolute inset-0 w-full h-full"
-              src={`https://www.youtube.com/embed/${video.youtubeId}?enablejsapi=1`}
+              src={embedSrc}
               title={video.title}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -111,7 +138,12 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
             {(["subtitles", "pronunciation", "dictation", "transcribe"] as Tab[]).map((t) => (
               <button
                 key={t}
-                onClick={() => setTab(t)}
+                onClick={() => {
+                  setTab(t);
+                  if (t === "dictation" && video.subtitles[dictSubIdx]) {
+                    playSingleSub(video.subtitles[dictSubIdx]);
+                  }
+                }}
                 className={`px-4 py-3 text-xs font-medium transition-colors border-b-2 whitespace-nowrap ${
                   tab === t
                     ? "border-[var(--primary)] text-[var(--primary)]"
@@ -125,7 +157,6 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto p-4">
-
             {/* SUBTITLES */}
             {tab === "subtitles" && (
               <div>
@@ -142,7 +173,7 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
                 ) : (
                   <>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs text-[var(--muted-foreground)]">{video.subtitles.length} đoạn · nhấn để lưu câu hay</span>
+                      <span className="text-xs text-[var(--muted-foreground)]">{video.subtitles.length} đoạn · nhấn để phát từ câu đó</span>
                       <button
                         onClick={() => setShowVi(!showVi)}
                         className={`text-xs px-3 py-1 rounded-full transition-colors ${showVi ? "bg-[var(--accent)] text-white" : "bg-[var(--secondary)] text-[var(--muted-foreground)]"}`}
@@ -159,7 +190,7 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
                               ? "border-[var(--primary)] bg-[var(--primary)]/8"
                               : "border-[var(--border)] bg-[var(--secondary)] hover:border-[var(--accent)]/50"
                           }`}
-                          onClick={() => setActiveSubId(activeSubId === sub.id ? null : sub.id)}
+                          onClick={() => playFromSubContinuous(sub)}
                         >
                           <div className="flex items-start gap-3">
                             <span className="mono text-[10px] text-[var(--muted-foreground)] pt-0.5 w-10 flex-shrink-0">
@@ -190,7 +221,7 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
 
             {/* PRONUNCIATION */}
             {tab === "pronunciation" && (
-              <PronunciationTab subtitles={video.subtitles} />
+              <PronunciationTab subtitles={video.subtitles} onPlaySegment={playSingleSub} />
             )}
 
             {/* DICTATION */}
@@ -202,19 +233,46 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
                   <>
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-xs text-[var(--muted-foreground)]">
-                        Nghe đoạn tại <span className="mono text-[var(--foreground)]">{formatTime(dictSub.start)}</span> rồi chép lại
+                        Nghe đúng câu tại <span className="mono text-[var(--foreground)]">{formatTime(dictSub.start)}</span> rồi chép lại
                       </p>
                       <div className="flex gap-2">
-                        <button disabled={dictSubIdx === 0} onClick={() => { setDictSubIdx(i => i - 1); setDictInput(""); setDictChecked(false); }} className="text-xs px-2 py-1 bg-[var(--secondary)] rounded disabled:opacity-30">← Trước</button>
-                        <button disabled={dictSubIdx >= video.subtitles.length - 1} onClick={() => { setDictSubIdx(i => i + 1); setDictInput(""); setDictChecked(false); }} className="text-xs px-2 py-1 bg-[var(--secondary)] rounded disabled:opacity-30">Sau →</button>
+                        <button
+                          disabled={dictSubIdx === 0}
+                          onClick={() => {
+                            const nextIdx = dictSubIdx - 1;
+                            setDictSubIdx(nextIdx);
+                            setDictInput("");
+                            setDictChecked(false);
+                            playSingleSub(video.subtitles[nextIdx]);
+                          }}
+                          className="text-xs px-2 py-1 bg-[var(--secondary)] rounded disabled:opacity-30"
+                        >
+                          ← Trước
+                        </button>
+                        <button
+                          disabled={dictSubIdx >= video.subtitles.length - 1}
+                          onClick={() => {
+                            const nextIdx = dictSubIdx + 1;
+                            setDictSubIdx(nextIdx);
+                            setDictInput("");
+                            setDictChecked(false);
+                            playSingleSub(video.subtitles[nextIdx]);
+                          }}
+                          className="text-xs px-2 py-1 bg-[var(--secondary)] rounded disabled:opacity-30"
+                        >
+                          Sau →
+                        </button>
                       </div>
                     </div>
-                    <div className="bg-[var(--secondary)] border border-[var(--border)] rounded-xl p-4 mb-4 flex items-center justify-between">
+                    <div
+                      onClick={() => playSingleSub(dictSub)}
+                      className="bg-[var(--secondary)] border border-[var(--border)] hover:border-[var(--primary)] cursor-pointer rounded-xl p-4 mb-4 flex items-center justify-between transition-colors"
+                    >
                       <div>
-                        <div className="text-xs text-[var(--muted-foreground)]">Đoạn {dictSubIdx + 1} / {video.subtitles.length}</div>
+                        <div className="text-xs text-[var(--muted-foreground)]">Đoạn {dictSubIdx + 1} / {video.subtitles.length} (Nhấn để phát đúng câu này)</div>
                         <div className="mono text-xs text-[var(--accent)] mt-0.5">{formatTime(dictSub.start)} — {formatTime(dictSub.end)}</div>
                       </div>
-                      <div className="text-2xl">🎧</div>
+                      <div className="text-sm font-semibold text-[var(--primary)] flex items-center gap-1">🔁 Phát lại câu</div>
                     </div>
                     <textarea
                       value={dictInput}
@@ -318,6 +376,6 @@ export default function VideoDetailPage({ videoId, navigate, videos = defaultVid
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }

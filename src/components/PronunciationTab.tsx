@@ -30,9 +30,9 @@ function scoreWords(target: string, spoken: string): WordResult[] {
 
 const hasSpeechRecognition = !!(typeof window !== "undefined" && ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition));
 
-type Props = { subtitles: Subtitle[] };
+type Props = { subtitles: Subtitle[]; onPlaySegment?: (sub: Subtitle) => void };
 
-export default function PronunciationTab({ subtitles }: Props) {
+export default function PronunciationTab({ subtitles, onPlaySegment }: Props) {
   const [target, setTarget] = useState<Subtitle | null>(null);
   const [recordState, setRecordState] = useState<RecordState>("idle");
   const [transcript, setTranscript] = useState("");
@@ -46,6 +46,7 @@ export default function PronunciationTab({ subtitles }: Props) {
   const selectSentence = (sub: Subtitle) => {
     setTarget(sub);
     resetResult();
+    if (onPlaySegment) onPlaySegment(sub);
   };
 
   const resetResult = () => {
@@ -89,16 +90,10 @@ export default function PronunciationTab({ subtitles }: Props) {
       }, 300);
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = () => {
       clearInterval(pulseRef.current!);
       setPulse(false);
-      if (event.error === "no-speech") {
-        setRecordState("error");
-      } else if (event.error === "not-allowed") {
-        setRecordState("error");
-      } else {
-        setRecordState("error");
-      }
+      setRecordState("error");
     };
 
     recognition.onend = () => {
@@ -122,10 +117,10 @@ export default function PronunciationTab({ subtitles }: Props) {
   const scoreMsg = score === null ? "" : score >= 90 ? "Xuất sắc! Phát âm chuẩn rồi 🎉" : score >= 75 ? "Tốt lắm! Tiếp tục luyện tập 👍" : score >= 60 ? "Khá ổn, nhưng hãy thử lại 💪" : "Cần luyện thêm, đừng nản lòng! 🔥";
 
   return (
-    <div className="flex gap-5 h-full">
+    <div className="flex flex-col md:flex-row gap-5 h-full">
       {/* Sentence picker - left column */}
-      <div className="w-56 flex-shrink-0 flex flex-col gap-1.5">
-        <p className="text-xs text-[var(--muted-foreground)] mb-1 font-medium">Chọn câu để luyện:</p>
+      <div className="w-full md:w-64 flex-shrink-0 flex flex-col gap-1.5 max-h-52 md:max-h-none overflow-y-auto">
+        <p className="text-xs text-[var(--muted-foreground)] mb-1 font-medium">Chọn câu để video phát đúng câu đó & luyện nói:</p>
         {subtitles.length === 0 ? (
           <div className="text-xs text-[var(--muted-foreground)] bg-[var(--secondary)] rounded-lg p-3">Video này chưa có subtitle.</div>
         ) : (
@@ -139,7 +134,7 @@ export default function PronunciationTab({ subtitles }: Props) {
                   : "bg-[var(--secondary)] border border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-[var(--border)]"
               }`}
             >
-              <span className="mono text-[9px] text-[var(--muted-foreground)] block mb-0.5">{formatTime(sub.start)}</span>
+              <span className="mono text-[9px] text-[var(--accent)] block mb-0.5">▶ {formatTime(sub.start)} — {formatTime(sub.end)}</span>
               {sub.en.length > 55 ? sub.en.slice(0, 55) + "…" : sub.en}
             </button>
           ))
@@ -149,11 +144,11 @@ export default function PronunciationTab({ subtitles }: Props) {
       {/* Main practice area */}
       <div className="flex-1 flex flex-col gap-4 overflow-y-auto pb-2">
         {!target ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center py-8">
             <div className="text-center text-[var(--muted-foreground)]">
               <div className="text-4xl mb-3">🎤</div>
-              <p className="text-sm font-medium mb-1">Chọn một câu bên trái để bắt đầu</p>
-              <p className="text-xs opacity-70">Hệ thống sẽ dùng mic của bạn để chấm điểm phát âm</p>
+              <p className="text-sm font-medium mb-1">Chọn một câu để bắt đầu luyện Shadowing</p>
+              <p className="text-xs opacity-70">Video sẽ chỉ phát đúng câu bạn chọn rồi tự dừng để bạn đọc theo</p>
             </div>
           </div>
         ) : (
@@ -165,11 +160,21 @@ export default function PronunciationTab({ subtitles }: Props) {
                   <p className="text-sm font-medium text-[var(--foreground)] leading-relaxed">{target.en}</p>
                   <p className="text-xs text-[var(--accent)] mt-1">{target.vi}</p>
                 </div>
-                {attempts > 0 && (
-                  <div className="flex-shrink-0 text-xs mono text-[var(--muted-foreground)] bg-[var(--muted)] rounded-lg px-2 py-1">
-                    {attempts}× thử
-                  </div>
-                )}
+                <div className="flex items-center gap-2 shrink-0">
+                  {onPlaySegment && (
+                    <button
+                      onClick={() => onPlaySegment(target)}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-[var(--primary)]/15 text-[var(--primary)] font-semibold hover:bg-[var(--primary)]/25"
+                    >
+                      🔁 Nghe lại câu
+                    </button>
+                  )}
+                  {attempts > 0 && (
+                    <div className="flex-shrink-0 text-xs mono text-[var(--muted-foreground)] bg-[var(--muted)] rounded-lg px-2 py-1">
+                      {attempts}× thử
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -182,7 +187,6 @@ export default function PronunciationTab({ subtitles }: Props) {
                 </div>
               ) : (
                 <>
-                  {/* Big mic button */}
                   <div className="relative">
                     {recordState === "listening" && (
                       <div className="absolute inset-0 rounded-full animate-ping bg-[var(--primary)] opacity-20 scale-150" />
@@ -210,10 +214,6 @@ export default function PronunciationTab({ subtitles }: Props) {
                     {recordState === "done" && "Nhấn để thử lại"}
                     {recordState === "error" && <span className="text-red-400">Lỗi mic — kiểm tra quyền truy cập và thử lại</span>}
                   </p>
-
-                  <div className="text-[10px] text-[var(--muted-foreground)] text-center max-w-52 leading-relaxed">
-                    💡 Hãy đọc to và rõ ràng câu tiếng Anh phía trên sau khi nhấn mic
-                  </div>
                 </>
               )}
             </div>
@@ -244,42 +244,18 @@ export default function PronunciationTab({ subtitles }: Props) {
                     >
                       <span>{r.word}</span>
                       <span className="text-[9px] opacity-70 mono">{Math.round(r.similarity * 100)}%</span>
-                      {!r.correct && r.spoken && (
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[var(--foreground)] text-[var(--background)] text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                          Bạn nói: "{r.spoken}"
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
 
-                {/* Score card */}
                 {score !== null && (
                   <div className={`rounded-xl border p-4 text-center ${scoreBg}`}>
                     <div className={`text-4xl font-bold mb-1 ${scoreColor}`} style={{ fontFamily: "Outfit,sans-serif" }}>
                       {score}%
                     </div>
                     <p className="text-sm text-[var(--foreground)]">{scoreMsg}</p>
-                    <div className="flex justify-center gap-6 mt-3 text-xs text-[var(--muted-foreground)]">
-                      <span>✓ {wordResults.filter((r) => r.correct).length} đúng</span>
-                      <span>✗ {wordResults.filter((r) => !r.correct).length} sai</span>
-                      <span>📊 {wordResults.length} từ</span>
-                    </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {/* Tips */}
-            {recordState === "idle" && !wordResults.length && (
-              <div className="bg-[var(--secondary)] rounded-xl p-4 border border-[var(--border)]">
-                <p className="text-xs font-medium text-[var(--foreground)] mb-2">💡 Mẹo phát âm tốt hơn</p>
-                <ul className="text-xs text-[var(--muted-foreground)] space-y-1.5 leading-relaxed">
-                  <li>• Đọc to, tự tin và rõ ràng</li>
-                  <li>• Giữ mic cách miệng khoảng 20-30cm</li>
-                  <li>• Nghe video trước rồi bắt chước ngữ điệu</li>
-                  <li>• Luyện từng câu nhiều lần cho đến khi đạt 85%+</li>
-                </ul>
               </div>
             )}
           </>
@@ -291,6 +267,6 @@ export default function PronunciationTab({ subtitles }: Props) {
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }

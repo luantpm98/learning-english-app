@@ -4,8 +4,8 @@ export declare class ChannelsController {
     constructor(channelsService: ChannelsService);
     findAll(userId?: string): Promise<{
         id: number;
-        thumbnail: string | null;
         name: string;
+        thumbnail: string | null;
         youtubeChannelId: string;
         subCount: string | null;
     }[]>;
@@ -17,8 +17,8 @@ export declare class ChannelsController {
         subCount?: string;
     }): Promise<{
         id: number;
-        thumbnail: string | null;
         name: string;
+        thumbnail: string | null;
         youtubeChannelId: string;
         subCount: string | null;
     }>;

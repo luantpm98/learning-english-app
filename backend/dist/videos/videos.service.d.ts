@@ -37,10 +37,10 @@ export declare class VideosService {
     }[]>;
     findAll(): Promise<{
         id: number;
+        thumbnail: string | null;
         youtubeId: string;
         title: string;
         level: string | null;
-        thumbnail: string | null;
         duration: string | null;
         author: string | null;
         channelId: number | null;
@@ -58,10 +58,10 @@ export declare class VideosService {
         }[];
     } & {
         id: number;
+        thumbnail: string | null;
         youtubeId: string;
         title: string;
         level: string | null;
-        thumbnail: string | null;
         duration: string | null;
         author: string | null;
         channelId: number | null;
@@ -79,10 +79,10 @@ export declare class VideosService {
         }[];
     } & {
         id: number;
+        thumbnail: string | null;
         youtubeId: string;
         title: string;
         level: string | null;
-        thumbnail: string | null;
         duration: string | null;
         author: string | null;
         channelId: number | null;
@@ -91,10 +91,10 @@ export declare class VideosService {
     }) | null>;
     remove(id: number): Promise<{
         id: number;
+        thumbnail: string | null;
         youtubeId: string;
         title: string;
         level: string | null;
-        thumbnail: string | null;
         duration: string | null;
         author: string | null;
         channelId: number | null;

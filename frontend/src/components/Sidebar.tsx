@@ -1,17 +1,8 @@
-'use client';
-
+"use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
-
-const nav = [
-  { id: "/", icon: "⊞", label: "Dashboard" },
-  { id: "/videos", icon: "▶", label: "Video Library" },
-  { id: "/vocabulary", icon: "◈", label: "Vocabulary" },
-  { id: "/phrases", icon: "❝", label: "Phrases" },
-  { id: "/review", icon: "◷", label: "Daily Review" },
-  { id: "/reflex", icon: "⚡", label: "Reflex Training" },
-];
+import { useEffect, useState } from "react";
+import { API_URL } from "../utils/storage";
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -20,21 +11,52 @@ export default function Sidebar() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-  }, [theme]);
+    const savedTheme = (localStorage.getItem("theme") as "dark" | "light") || "dark";
+    setTheme(savedTheme);
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }, []);
 
-  // Sync user from localstorage
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("theme", next);
+    document.documentElement.setAttribute("data-theme", next);
+  };
+
   useEffect(() => {
     const checkUser = () => {
       const stored = localStorage.getItem("user");
-      setUser(stored ? JSON.parse(stored) : null);
+      if (stored) {
+        setUser(JSON.parse(stored));
+      } else {
+        setUser(null);
+      }
     };
     checkUser();
     window.addEventListener("storage", checkUser);
     return () => window.removeEventListener("storage", checkUser);
-  }, [pathname]); // also check on route change
+  }, [pathname]);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  // Background keep-alive ping every 5 minutes while app is open so Render stays warm
+  useEffect(() => {
+    const ping = () => {
+      fetch(`${API_URL}/health`).catch(() => {});
+    };
+    ping();
+    const id = setInterval(ping, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (pathname === "/auth") return null;
+
+  const links = [
+    { href: "/", label: "Tổng quan", shortLabel: "Home", icon: "📊" },
+    { href: "/videos", label: "Thư viện Video", shortLabel: "Video", icon: "🎬" },
+    { href: "/vocabulary", label: "Từ vựng 4 Chế độ", shortLabel: "Từ vựng", icon: "🗂️" },
+    { href: "/phrases", label: "Giao tiếp & Roleplay", shortLabel: "Giao tiếp", icon: "🎭" },
+    { href: "/reflex", label: "Phản xạ câu", shortLabel: "Phản xạ", icon: "⚡" },
+    { href: "/review", label: "Ôn tập SRS", shortLabel: "Ôn SRS", icon: "🧠" },
+  ];
 
   const handleLogout = () => {
     localStorage.removeItem("user");
@@ -42,58 +64,90 @@ export default function Sidebar() {
     router.push("/auth");
   };
 
-  if (pathname === "/auth") return null; // Don't show sidebar on auth page
-
   return (
-    <aside className="w-20 md:w-64 bg-card border-r border-border flex flex-col transition-all duration-300">
-      <div className="h-16 flex items-center justify-center md:justify-start md:px-6 border-b border-border">
-        <div className="w-8 h-8 rounded bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">
-          E
+    <>
+      {/* DESKTOP SIDEBAR (Hidden on Mobile) */}
+      <aside className="hidden md:flex w-64 bg-card border-r border-border flex-col justify-between py-6 px-4 shrink-0 transition-all z-30">
+        <div>
+          <div className="flex items-center gap-3 px-2 mb-8">
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg shadow-primary/30 shrink-0">
+              E
+            </div>
+            <div>
+              <span className="font-bold text-lg tracking-tight block leading-none">EngMaster Pro</span>
+              <span className="text-[11px] text-muted-foreground">Giao tiếp & Phản xạ</span>
+            </div>
+          </div>
+
+          <nav className="space-y-1.5">
+            {links.map((link) => {
+              const isActive =
+                pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all font-semibold text-sm ${
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                      : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                  }`}
+                >
+                  <span className="text-xl">{link.icon}</span>
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-        <span className="ml-3 font-bold text-xl hidden md:block">EngApp</span>
-      </div>
 
-      <nav className="flex-1 py-6 flex flex-col gap-2 px-3">
-        {nav.map((item) => {
-          const isActive = item.id === "/" ? pathname === "/" : pathname.startsWith(item.id);
+        <div className="space-y-3">
+          {user && (
+            <div className="p-3 bg-secondary/50 rounded-xl flex items-center justify-between border border-border">
+              <div className="truncate pr-2">
+                <div className="text-xs text-muted-foreground">Tài khoản</div>
+                <div className="font-bold text-sm truncate text-primary">
+                  {user.name || user.username}
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="text-xs text-red-500 hover:bg-red-500/10 p-2 rounded-lg transition-colors shrink-0 font-bold"
+                title="Đăng xuất"
+              >
+                Thoát
+              </button>
+            </div>
+          )}
+          <button
+            onClick={toggleTheme}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-muted-foreground hover:bg-secondary hover:text-foreground transition-all text-sm font-medium"
+          >
+            <span className="text-lg">{theme === "dark" ? "☀️" : "🌙"}</span>
+            <span>{theme === "dark" ? "Giao diện Sáng" : "Giao diện Tối"}</span>
+          </button>
+        </div>
+      </aside>
 
+      {/* MOBILE BOTTOM NAVIGATION BAR (Shown on Phones & Small Tablets < md) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-16 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1 shadow-2xl">
+        {links.map((link) => {
+          const isActive =
+            pathname === link.href || (link.href !== "/" && pathname.startsWith(link.href));
           return (
             <Link
-              key={item.id}
-              href={item.id}
-              className={`flex items-center gap-3 px-3 py-3 rounded-md transition-colors ${
-                isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+              key={link.href}
+              href={link.href}
+              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all min-w-[52px] ${
+                isActive ? "text-primary font-extrabold scale-105" : "text-muted-foreground"
               }`}
             >
-              <span className="text-xl w-6 text-center">{item.icon}</span>
-              <span className="font-medium hidden md:block">{item.label}</span>
+              <span className="text-lg leading-none">{link.icon}</span>
+              <span className="text-[10px] mt-1 leading-none whitespace-nowrap">{link.shortLabel}</span>
             </Link>
           );
         })}
       </nav>
-
-      <div className="p-4 border-t border-border flex flex-col gap-2">
-        <button
-          onClick={toggleTheme}
-          className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-        >
-          <span className="text-xl w-6 text-center">{theme === "dark" ? "☀" : "☾"}</span>
-          <span className="font-medium hidden md:block">
-            {theme === "dark" ? "Light Mode" : "Dark Mode"}
-          </span>
-        </button>
-        {user && (
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-md text-red-500 hover:bg-red-50 transition-colors"
-          >
-            <span className="text-xl w-6 text-center">⎋</span>
-            <span className="font-medium hidden md:block">Logout</span>
-          </button>
-        )}
-      </div>
-    </aside>
+    </>
   );
 }

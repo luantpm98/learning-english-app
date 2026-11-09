@@ -1,161 +1,300 @@
 "use client";
-import { getUserKey, API_URL } from "../../../utils/storage";
+import { getUserKey, API_URL, speakEnglish, getSrsMap, saveSrsWord, lookupWordDictionary } from "../../../utils/storage";
+import { BUILTIN_VOCAB_SETS } from "../../../utils/curatedData";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import axios from "axios";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
 
-type Vocabulary = {
-  id: number;
-  word: string;
-  definition: string;
-  translation?: string;
-  audioUrl?: string;
-  phonetic?: string;
-  imageUrl?: string;
-};
-
-type VocabularySet = {
-  id: number;
-  name: string;
-  description: string;
-  thumbnail: string;
-  words: Vocabulary[];
-};
-
-export default function VocabularySetPage() {
+export default function VocabularySetDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params.setId as string;
-  
-  const [set, setSet] = useState<VocabularySet | null>(null);
-  const [savedWords, setSavedWords] = useState<any[]>([]);
+  const setId = params.setId as string;
+
+  const [set, setSet] = useState<any>(null);
+  const [savedWordIds, setSavedWordIds] = useState<number[]>([]);
+  const [srsMap, setSrsMap] = useState<Record<string, any>>({});
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "new" | "learning" | "mastered" | "saved">("all");
+  const [page, setPage] = useState(1);
+  const [enrichingId, setEnrichingId] = useState<number | null>(null);
+  const PAGE_SIZE = 48;
 
   useEffect(() => {
-    if (id) {
-      axios.get(`${API_URL}/vocabulary-sets/${id}`).then((res) => {
-        setSet(res.data);
-      }).catch((e) => {
-        console.error(e);
-        router.push("/vocabulary");
-      });
-    }
     const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
-    setSavedWords(saved);
-  }, [id, router]);
+    setSavedWordIds(saved.map((w: any) => w.id));
+    setSrsMap(getSrsMap());
+  }, []);
 
   useEffect(() => {
-    if (set && set.words.length > 0) {
-      const untranslated = set.words.filter(w => !w.translation);
-      if (untranslated.length > 0) {
-        const texts = untranslated.slice(0, 100).map(w => w.word + ": " + w.definition);
-        axios.post(`${API_URL}/videos/translate`, { text: texts.join('\n') })
-          .then(res => {
-            const translatedTexts = (res.data.text || "").split('\n');
-            const newSet = { ...set };
+    if (!setId) return;
+    const builtIn = BUILTIN_VOCAB_SETS.find((s) => String(s.id) === String(setId));
+    if (builtIn) {
+      setSet(builtIn);
+    }
+
+    axios
+      .get(`${API_URL}/vocabulary-sets/${setId}`)
+      .then(async (res) => {
+        const data = res.data;
+        setSet(data);
+
+        // Background batch translate for first 120 words if untranslated
+        const untranslated = (data.words || []).filter((w: any) => !w.translation).slice(0, 120);
+        if (untranslated.length > 0) {
+          try {
+            const texts = untranslated.map((w: any) => w.word);
+            const tRes = await axios.post(`${API_URL}/videos/translate`, { text: texts.join("\n") });
+            const translatedTexts = (tRes.data.text || "").split("\n");
             let j = 0;
-            newSet.words = newSet.words.map(w => {
-              if (!w.translation && j < translatedTexts.length) {
-                 w.translation = translatedTexts[j] || "Lỗi dịch thuật";
-                 j++;
-                 axios.post(`${API_URL}/vocabularies/${w.id}`, { translation: w.translation }).catch(()=>{});
+            const updatedWords = data.words.map((w: any) => {
+              if (!w.translation && untranslated.some((u: any) => u.id === w.id)) {
+                w.translation = translatedTexts[j] || "Từ vựng thông dụng";
+                j++;
               }
               return w;
             });
-            setSet(newSet);
-          }).catch(console.error);
-      }
-    }
-  }, [set?.id]);
+            setSet({ ...data, words: updatedWords });
+          } catch {}
+        }
+      })
+      .catch(() => {
+        if (!builtIn) router.push("/vocabulary");
+      });
+  }, [setId, router]);
 
-  const toggleSaveWord = (word: Vocabulary) => {
-    let saved = [...savedWords];
-    if (saved.find(w => w.id === word.id)) {
-       saved = saved.filter(w => w.id !== word.id);
+  const toggleSaveWord = (e: React.MouseEvent, word: any) => {
+    e.stopPropagation();
+    const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
+    const isSaved = savedWordIds.includes(word.id);
+
+    if (isSaved) {
+      const updated = saved.filter((w: any) => w.id !== word.id);
+      localStorage.setItem(getUserKey("savedWords"), JSON.stringify(updated));
+      setSavedWordIds(updated.map((w: any) => w.id));
     } else {
-       saved.push(word);
+      saved.unshift(word);
+      localStorage.setItem(getUserKey("savedWords"), JSON.stringify(saved));
+      setSavedWordIds(saved.map((w: any) => w.id));
+      saveSrsWord(word, "good");
+      setSrsMap(getSrsMap());
     }
-    setSavedWords(saved);
-    localStorage.setItem(getUserKey("savedWords"), JSON.stringify(saved));
   };
 
-  if (!set) return <div className="p-8">Loading...</div>;
+  const handleEnrichWord = async (wordObj: any) => {
+    setEnrichingId(wordObj.id);
+    try {
+      const [dict, transRes] = await Promise.all([
+        lookupWordDictionary(wordObj.word),
+        !wordObj.translation
+          ? axios.post(`${API_URL}/videos/translate`, { text: wordObj.word }).catch(() => ({ data: { text: "" } }))
+          : Promise.resolve({ data: { text: wordObj.translation } }),
+      ]);
+
+      const updatedWords = set.words.map((w: any) => {
+        if (w.id === wordObj.id) {
+          return {
+            ...w,
+            phonetic: dict.phonetic || w.phonetic,
+            translation: transRes.data?.text || w.translation || "Từ vựng thông dụng",
+            definition: dict.example ? `${dict.definitionEn} — Ví dụ: "${dict.example}"` : dict.definitionEn || w.definition,
+          };
+        }
+        return w;
+      });
+      setSet({ ...set, words: updatedWords });
+    } finally {
+      setEnrichingId(null);
+    }
+  };
+
+  const filteredWords = useMemo(() => {
+    if (!set?.words) return [];
+    return set.words.filter((w: any) => {
+      const q = search.trim().toLowerCase();
+      if (
+        q &&
+        !w.word.toLowerCase().includes(q) &&
+        !(w.translation && w.translation.toLowerCase().includes(q))
+      ) {
+        return false;
+      }
+      const srs = srsMap[w.word.toLowerCase()];
+      if (filterStatus === "saved") return savedWordIds.includes(w.id);
+      if (filterStatus === "new") return !srs;
+      if (filterStatus === "learning") return srs && srs.level < 4;
+      if (filterStatus === "mastered") return srs && srs.level >= 4;
+      return true;
+    });
+  }, [set?.words, search, filterStatus, srsMap, savedWordIds]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredWords.length / PAGE_SIZE));
+  const currentWords = filteredWords.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  if (!set) return <div className="p-8">Đang tải bộ từ vựng...</div>;
 
   return (
-    <div className="p-8 h-full flex flex-col gap-6 bg-[#12121A] text-white overflow-y-auto">
-      <div className="flex gap-4 items-center">
-        <Link href="/vocabulary" className="text-gray-400 hover:text-white">
-          ← Quay lại
-        </Link>
-        <h1 className="text-3xl font-bold">{set.name}</h1>
-      </div>
-      
-      <div className="flex gap-4 bg-[#1E1E24] border border-[#2A2A35] p-6 rounded-2xl items-center shadow-lg">
-        <div className="flex-1">
-          <p className="text-gray-400 text-lg mb-4">{set.description}</p>
-          <p className="font-bold mb-4">{set.words.length} từ trong bộ này.</p>
-          
-          <Link
-            href={`/vocabulary/${id}/learn`}
-            className="inline-block bg-[#4ade80] text-black px-8 py-3 rounded-xl font-bold text-lg hover:opacity-90 shadow-[0_0_15px_rgba(74,222,128,0.2)] transition-all"
+    <div className="p-4 md:p-8 pb-24 md:pb-8 h-full flex flex-col gap-5 overflow-y-auto">
+      {/* HEADER CARD */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-5 md:p-6 rounded-3xl border border-border shadow-sm shrink-0">
+        <div>
+          <button
+            onClick={() => router.push("/vocabulary")}
+            className="text-muted-foreground hover:text-foreground mb-2 text-sm flex items-center gap-1 font-medium"
           >
-            Bắt đầu học
+            ← Quay lại danh sách bộ từ
+          </button>
+          <h1 className="text-2xl md:text-3xl font-bold">{set.name}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{set.description}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2.5 shrink-0">
+          <Link
+            href={`/vocabulary/${set.id}/learn`}
+            className="bg-primary text-primary-foreground px-6 py-3.5 rounded-2xl font-bold text-sm md:text-base hover:opacity-90 shadow-md flex items-center gap-2 transition-transform hover:scale-105"
+          >
+            <span>🚀</span> Vào Phòng Luyện 4 Chế Độ ({set.words?.length || 0} từ)
           </Link>
         </div>
-        <img src={set.thumbnail} alt="thumbnail" onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=800&q=80"; }} className="w-full h-full rounded-xl object-cover hidden md:block" />
       </div>
 
-      <h2 className="text-xl font-bold mt-4">Danh sách từ</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {set.words.map((v) => {
-          const isSaved = savedWords.some(w => w.id === v.id);
-          return (
-          <div key={v.id} className="bg-[#1E1E24] p-5 rounded-xl border border-[#2A2A35] flex justify-between items-start group relative overflow-hidden shadow-sm hover:border-[#3A3A4A] transition-all">
-            <div className="relative z-10 flex-1">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-bold text-xl text-[#4ade80] drop-shadow-md">{v.word}</h3>
-                  {v.phonetic && <span className="text-gray-500 font-mono text-sm">/{v.phonetic}/</span>}
-                </div>
-                <button 
-                  onClick={() => toggleSaveWord(v)}
-                  className={`text-2xl hover:scale-110 transition-transform ${isSaved ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-400/50'}`}
-                >
-                  {isSaved ? "★" : "☆"}
-                </button>
-              </div>
-              <p className="text-white drop-shadow-sm mb-2 font-medium flex items-center gap-2">
-                {v.translation || "Bản dịch..."}
-                {!v.translation && (
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.currentTarget.innerText = "Dịch...";
-                      axios.post(`${API_URL}/videos/translate`, { text: v.word + ": " + v.definition })
-                        .then(res => {
-                           v.translation = res.data.text;
-                           if (set) {
-                             setSet({...set});
-                           }
-                        }).catch(() => e.currentTarget.innerText = "Lỗi");
-                    }} 
-                    className="text-xs bg-[#2A2A35] px-2 py-1 rounded text-gray-300 hover:text-white"
-                  >
-                    Dịch
-                  </button>
-                )}
-              </p>
-              <p className="text-gray-400 text-sm drop-shadow-sm line-clamp-2">🇬🇧 {v.definition}</p>
-            </div>
-            
-            <div className="absolute right-0 top-0 bottom-0 w-32 opacity-20 group-hover:opacity-40 transition-all duration-300 pointer-events-none">
-              <img src={v.imageUrl || `https://picsum.photos/seed/${v.word}/400/300`} onError={(e) => { e.currentTarget.src = `https://picsum.photos/seed/${v.word}2/400/300`; }} alt={v.word} className="w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#1E1E24] to-transparent"></div>
-            </div>
-          </div>
-        )})}
+      {/* SEARCH & FILTER BAR */}
+      <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-card p-3.5 rounded-2xl border border-border shrink-0">
+        <div className="relative flex-1">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground">🔍</span>
+          <input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Tìm kiếm từ tiếng Anh hoặc nghĩa tiếng Việt..."
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-background border border-border focus:outline-none focus:border-primary text-sm"
+          />
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar">
+          {[
+            { id: "all", label: `Tất cả (${set.words?.length || 0})` },
+            { id: "new", label: "Từ mới" },
+            { id: "learning", label: "Đang học" },
+            { id: "mastered", label: "Đã thuộc" },
+            { id: "saved", label: "⭐ Đã lưu" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setFilterStatus(tab.id as any);
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+                filterStatus === tab.id
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* WORDS GRID */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {currentWords.map((w: any) => {
+          const isSaved = savedWordIds.includes(w.id);
+          const srs = srsMap[w.word.toLowerCase()];
+          const isPlaceholderDef = w.definition && w.definition.startsWith("Definition of ");
+
+          return (
+            <div
+              key={w.id}
+              onClick={() => speakEnglish(w.word)}
+              className="bg-card border border-border p-4 rounded-2xl shadow-sm flex flex-col justify-between relative group hover:border-primary/50 transition-all cursor-pointer"
+            >
+              <div>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div>
+                    <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                      {w.word}
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">🔊</span>
+                    </h3>
+                    {w.phonetic && <span className="text-xs text-muted-foreground font-mono">{w.phonetic}</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {srs && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          srs.level >= 4
+                            ? "bg-emerald-500/15 text-emerald-500"
+                            : "bg-amber-500/15 text-amber-500"
+                        }`}
+                      >
+                        Lv.{srs.level}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => toggleSaveWord(e, w)}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                        isSaved
+                          ? "text-yellow-400 bg-yellow-400/10"
+                          : "text-muted-foreground hover:bg-secondary"
+                      }`}
+                      title={isSaved ? "Bỏ lưu" : "Lưu vào sổ tay & SRS"}
+                    >
+                      {isSaved ? "★" : "☆"}
+                    </button>
+                  </div>
+                </div>
+
+                <p className="font-bold text-foreground mt-2 text-base">
+                  {w.translation || "Nhấn 🪄 bên dưới để tra nghĩa & ví dụ"}
+                </p>
+
+                <p className="text-muted-foreground text-xs mt-1.5 line-clamp-3 leading-relaxed">
+                  {isPlaceholderDef ? `We often use "${w.word}" in daily English conversations.` : w.definition}
+                </p>
+              </div>
+
+              {(isPlaceholderDef || !w.translation) && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEnrichWord(w);
+                  }}
+                  disabled={enrichingId === w.id}
+                  className="mt-3 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary/20 py-1.5 px-3 rounded-lg w-full transition-colors"
+                >
+                  {enrichingId === w.id ? "⏳ Đang tải từ điển..." : "🪄 Xem IPA chuẩn & Câu ví dụ thực tế"}
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* PAGINATION */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 py-4 shrink-0">
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-4 py-2 rounded-xl bg-card border border-border text-sm font-bold disabled:opacity-40"
+          >
+            ← Trang trước
+          </button>
+          <span className="text-sm font-semibold">
+            Trang {page} / {totalPages}
+          </span>
+          <button
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="px-4 py-2 rounded-xl bg-card border border-border text-sm font-bold disabled:opacity-40"
+          >
+            Trang sau →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

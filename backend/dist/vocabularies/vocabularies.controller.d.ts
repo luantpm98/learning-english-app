@@ -15,9 +15,11 @@ export declare class VocabulariesController {
     create(body: {
         word: string;
         definition: string;
+        translation?: string;
         phonetic?: string;
         audioUrl?: string;
         imageUrl?: string;
+        setId?: number;
     }): Promise<{
         id: number;
         translation: string | null;

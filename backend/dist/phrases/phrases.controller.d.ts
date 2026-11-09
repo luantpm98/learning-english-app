@@ -5,10 +5,10 @@ export declare class PhrasesController {
     findAll(userId?: string): Promise<({
         video: {
             id: number;
+            thumbnail: string | null;
             youtubeId: string;
             title: string;
             level: string | null;
-            thumbnail: string | null;
             duration: string | null;
             author: string | null;
             channelId: number | null;
