@@ -1,8 +1,8 @@
 "use client";
 import { API_URL, speakEnglish } from "../../utils/storage";
-import { ESSENTIAL_PHRASES, QA_REFLEX_ITEMS, GOLDEN_PATTERNS } from "../../utils/curatedData";
+import { ESSENTIAL_PHRASES, QA_REFLEX_ITEMS, GOLDEN_PATTERNS, QaReflexItem, SentencePatternItem } from "../../utils/curatedData";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 
 type Phrase = {
@@ -35,7 +35,7 @@ export default function ReflexTrainingPage() {
   );
   const [userPhrases, setUserPhrases] = useState<Phrase[]>([]);
   const [poolType, setPoolType] = useState<"all" | "essential" | "saved">("all");
-  const [questionCount, setQuestionCount] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<number[]>(ESSENTIAL_PHRASES.map((p) => p.id));
   const [duration, setDuration] = useState(6);
   const [showEnglishFirst, setShowEnglishFirst] = useState(false);
   const [handsFree, setHandsFree] = useState(false);
@@ -53,11 +53,20 @@ export default function ReflexTrainingPage() {
   const [spokenScore, setSpokenScore] = useState<number | null>(null);
   const recognitionRef = useRef<any>(null);
 
-  // Q&A Reflex state
+  // Q&A Reflex state (extensible with AI)
+  const [qaList, setQaList] = useState<QaReflexItem[]>(QA_REFLEX_ITEMS);
   const [qaIndex, setQaIndex] = useState(0);
   const [qaSpoken, setQaSpoken] = useState("");
   const [qaFeedback, setQaFeedback] = useState<{ score: number; matched: string[] } | null>(null);
   const [qaShowSample, setQaShowSample] = useState(false);
+  const [qaTopic, setQaTopic] = useState("Giao tiếp hàng ngày & Công sở");
+  const [generatingQa, setGeneratingQa] = useState(false);
+
+  // Golden Patterns state (extensible with AI)
+  const [patternList, setPatternList] = useState<SentencePatternItem[]>(GOLDEN_PATTERNS);
+  const [patternTopic, setPatternTopic] = useState("Giao tiếp thực tế & Công việc");
+  const [generatingPatterns, setGeneratingPatterns] = useState(false);
+  const [genError, setGenError] = useState("");
 
   // Manual Add State
   const [showAddForm, setShowAddForm] = useState(false);
@@ -66,6 +75,12 @@ export default function ReflexTrainingPage() {
 
   useEffect(() => {
     fetchPhrases();
+    try {
+      const savedQa = localStorage.getItem("custom_qa_reflex");
+      if (savedQa) setQaList([...QA_REFLEX_ITEMS, ...JSON.parse(savedQa)]);
+      const savedPatterns = localStorage.getItem("custom_golden_patterns");
+      if (savedPatterns) setPatternList([...GOLDEN_PATTERNS, ...JSON.parse(savedPatterns)]);
+    } catch {}
     return () => {
       if (recognitionRef.current) {
         try {
@@ -93,33 +108,42 @@ export default function ReflexTrainingPage() {
         })),
       ];
       setPhrases(combined);
-      setQuestionCount(Math.min(10, combined.length));
+      setSelectedIds(combined.map((p) => p.id));
     } catch {}
   };
 
-  const filteredPhrases =
-    poolType === "saved"
-      ? userPhrases
-      : poolType === "essential"
-      ? ESSENTIAL_PHRASES.map((p) => ({
-          id: p.id,
-          text: p.text,
-          translation: p.translation,
-          category: p.category,
-        }))
-      : phrases;
+  const poolPhrases = useMemo(() => {
+    if (poolType === "saved") return userPhrases;
+    if (poolType === "essential") {
+      return ESSENTIAL_PHRASES.map((p) => ({
+        id: p.id,
+        text: p.text,
+        translation: p.translation,
+        category: p.category,
+      }));
+    }
+    return phrases;
+  }, [poolType, phrases, userPhrases]);
 
-  const activeTotal = Math.min(questionCount, Math.max(1, filteredPhrases.length));
-  const currentPhrase = filteredPhrases[currentIndex];
+  const activeSessionPhrases = useMemo(() => {
+    const picked = poolPhrases.filter((p) => selectedIds.includes(p.id));
+    return picked.length > 0 ? picked : poolPhrases;
+  }, [poolPhrases, selectedIds]);
+
+  const activeTotal = activeSessionPhrases.length;
+  const currentPhrase = activeSessionPhrases[currentIndex];
+
+  const toggleSelectPhrase = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
 
   // Countdown loop for Speed Translation
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isPlaying && !isPaused && filteredPhrases.length > 0) {
+    if (isPlaying && !isPaused && activeTotal > 0) {
       if (timeLeft > 0) {
         timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
       } else {
-        // Move to next phrase
         if (currentIndex < activeTotal - 1) {
           goToNextPhrase();
         } else {
@@ -129,9 +153,8 @@ export default function ReflexTrainingPage() {
       }
     }
     return () => clearTimeout(timer);
-  }, [isPlaying, isPaused, timeLeft, currentIndex, activeTotal, filteredPhrases.length]);
+  }, [isPlaying, isPaused, timeLeft, currentIndex, activeTotal]);
 
-  // Halfway trigger: reveal answer & speak English model
   useEffect(() => {
     if (isPlaying && !isPaused && currentPhrase) {
       const halfway = Math.floor(duration / 2);
@@ -155,13 +178,13 @@ export default function ReflexTrainingPage() {
     setRevealAnswer(false);
     setSpokenText("");
     setSpokenScore(null);
-    if (showEnglishFirst && filteredPhrases[nextIdx]) {
-      speakEnglish(filteredPhrases[nextIdx].text);
+    if (showEnglishFirst && activeSessionPhrases[nextIdx]) {
+      speakEnglish(activeSessionPhrases[nextIdx].text);
     }
   };
 
   const startTraining = () => {
-    if (filteredPhrases.length === 0) return alert("Chưa có mẫu câu nào trong nhóm này!");
+    if (activeSessionPhrases.length === 0) return alert("Vui lòng chọn ít nhất 1 câu để luyện tập!");
     setCurrentIndex(0);
     setTimeLeft(duration);
     setRevealAnswer(false);
@@ -169,8 +192,8 @@ export default function ReflexTrainingPage() {
     setSpokenText("");
     setSpokenScore(null);
     setIsPlaying(true);
-    if (showEnglishFirst && filteredPhrases[0]) {
-      speakEnglish(filteredPhrases[0].text);
+    if (showEnglishFirst && activeSessionPhrases[0]) {
+      speakEnglish(activeSessionPhrases[0].text);
     }
   };
 
@@ -223,7 +246,7 @@ export default function ReflexTrainingPage() {
   };
 
   const startMicForQa = () => {
-    const qa = QA_REFLEX_ITEMS[qaIndex];
+    const qa = qaList[qaIndex];
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return alert("Trình duyệt không hỗ trợ nhận diện giọng nói. Vui lòng dùng Chrome/Edge/Safari.");
 
@@ -247,7 +270,6 @@ export default function ReflexTrainingPage() {
       const lower = spoken.toLowerCase();
       const matched = qa.keywords.filter((k) => lower.includes(k));
       const wordCount = spoken.trim().split(/\s+/).length;
-      // Score based on natural response length + relevant keywords
       const base = Math.min(60, wordCount * 10);
       const kwBonus = Math.min(40, matched.length * 15);
       setQaFeedback({ score: Math.min(100, base + kwBonus), matched });
@@ -257,6 +279,85 @@ export default function ReflexTrainingPage() {
     recognition.onerror = () => setIsListening(false);
     recognition.onend = () => setIsListening(false);
     recognition.start();
+  };
+
+  const handleGenerateMoreQa = async () => {
+    setGenError("");
+    const apiKey = localStorage.getItem("gemini_api_key") || "";
+    if (!apiKey) {
+      setGenError("Để AI tự động tạo câu mới theo chủ đề, vui lòng nhập Gemini API Key ở mục 🤖 Gia sư Gemini AI.");
+      return;
+    }
+    setGeneratingQa(true);
+    try {
+      const res = await axios.post("/api/gemini-teacher", {
+        action: "generate_qa",
+        topic: qaTopic,
+        apiKey,
+      });
+      if (Array.isArray(res.data?.items) && res.data.items.length > 0) {
+        const newItems: QaReflexItem[] = res.data.items.map((it: any, idx: number) => ({
+          id: Date.now() + idx,
+          topic: it.topic || qaTopic,
+          questionEn: it.questionEn,
+          questionVi: it.questionVi,
+          hintVi: it.hintVi || "",
+          sampleAnswerEn: it.sampleAnswerEn,
+          sampleAnswerVi: it.sampleAnswerVi,
+          keywords: Array.isArray(it.keywords) ? it.keywords : [],
+        }));
+        const oldCustom = JSON.parse(localStorage.getItem("custom_qa_reflex") || "[]");
+        const updatedCustom = [...oldCustom, ...newItems];
+        localStorage.setItem("custom_qa_reflex", JSON.stringify(updatedCustom));
+        const nextList = [...qaList, ...newItems];
+        setQaList(nextList);
+        const firstNewIdx = qaList.length;
+        setQaIndex(firstNewIdx);
+        setQaSpoken("");
+        setQaFeedback(null);
+        setQaShowSample(false);
+        speakEnglish(newItems[0].questionEn);
+      }
+    } catch (err: any) {
+      setGenError(err.response?.data?.error || "Không thể tạo thêm câu mới, vui lòng kiểm tra API Key.");
+    } finally {
+      setGeneratingQa(false);
+    }
+  };
+
+  const handleGenerateMorePatterns = async () => {
+    setGenError("");
+    const apiKey = localStorage.getItem("gemini_api_key") || "";
+    if (!apiKey) {
+      setGenError("Để AI tự động tạo thêm khung câu mới, vui lòng nhập Gemini API Key ở mục 🤖 Gia sư Gemini AI.");
+      return;
+    }
+    setGeneratingPatterns(true);
+    try {
+      const res = await axios.post("/api/gemini-teacher", {
+        action: "generate_patterns",
+        topic: patternTopic,
+        apiKey,
+      });
+      if (Array.isArray(res.data?.items) && res.data.items.length > 0) {
+        const newItems: SentencePatternItem[] = res.data.items.map((it: any, idx: number) => ({
+          id: patternList.length + idx + 1,
+          pattern: it.pattern,
+          meaningVi: it.meaningVi,
+          exampleEn: it.exampleEn,
+          exampleVi: it.exampleVi,
+          tip: it.tip || "",
+        }));
+        const oldCustom = JSON.parse(localStorage.getItem("custom_golden_patterns") || "[]");
+        const updatedCustom = [...oldCustom, ...newItems];
+        localStorage.setItem("custom_golden_patterns", JSON.stringify(updatedCustom));
+        setPatternList((prev) => [...prev, ...newItems]);
+      }
+    } catch (err: any) {
+      setGenError(err.response?.data?.error || "Không thể tạo thêm khung câu mới.");
+    } finally {
+      setGeneratingPatterns(false);
+    }
   };
 
   const handleAddPhrase = async (e: React.FormEvent) => {
@@ -278,10 +379,10 @@ export default function ReflexTrainingPage() {
     }
   };
 
-  const currentQa = QA_REFLEX_ITEMS[qaIndex];
+  const currentQa = qaList[qaIndex];
 
   return (
-    <div className="h-full flex flex-col max-w-4xl mx-auto w-full p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto gap-5">
+    <div className="h-full flex flex-col max-w-5xl mx-auto w-full p-4 md:p-8 pb-24 md:pb-8 overflow-y-auto gap-5">
       {/* HEADER & MODE TABS */}
       {!isPlaying && (
         <div className="flex flex-col gap-4 shrink-0">
@@ -290,13 +391,16 @@ export default function ReflexTrainingPage() {
               ⚡ Trung Tâm Phản Xạ Giao Tiếp Cấp Tốc
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Rèn phản xạ bật câu tiếng Anh trong 3–5 giây mà không cần dịch thầm trong đầu.
+              Xem trước danh sách câu để học, sau đó luyện phản xạ bật câu tức thì trong 3–5 giây.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-2 bg-card p-1.5 rounded-2xl border border-border">
             <button
-              onClick={() => setMode("speed")}
+              onClick={() => {
+                setMode("speed");
+                setGenError("");
+              }}
               className={`py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm transition-all ${
                 mode === "speed" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
@@ -306,21 +410,25 @@ export default function ReflexTrainingPage() {
             <button
               onClick={() => {
                 setMode("qa");
-                speakEnglish(QA_REFLEX_ITEMS[qaIndex].questionEn);
+                setGenError("");
+                if (qaList[qaIndex]) speakEnglish(qaList[qaIndex].questionEn);
               }}
               className={`py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm transition-all ${
                 mode === "qa" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              💬 2. Hỏi - Đáp AI
+              💬 2. Hỏi - Đáp AI ({qaList.length})
             </button>
             <button
-              onClick={() => setMode("patterns")}
+              onClick={() => {
+                setMode("patterns");
+                setGenError("");
+              }}
               className={`py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm transition-all ${
                 mode === "patterns" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              🧩 3. Khung câu vàng
+              🧩 3. Khung câu vàng ({patternList.length})
             </button>
           </div>
         </div>
@@ -330,9 +438,9 @@ export default function ReflexTrainingPage() {
       {mode === "speed" && (
         <>
           {!isPlaying ? (
-            <div className="w-full flex flex-col items-center">
+            <div className="w-full flex flex-col gap-6">
               {showAddForm ? (
-                <div className="w-full max-w-xl">
+                <div className="w-full max-w-xl mx-auto">
                   <button onClick={() => setShowAddForm(false)} className="mb-4 text-muted-foreground hover:text-foreground font-semibold text-sm">
                     ← Quay lại
                   </button>
@@ -364,127 +472,191 @@ export default function ReflexTrainingPage() {
                   </form>
                 </div>
               ) : (
-                <div className="w-full max-w-2xl bg-card border border-border rounded-3xl p-5 md:p-7 shadow-xl flex flex-col gap-5">
-                  {/* POOL */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <span className="font-bold text-sm">Nguồn câu luyện tập</span>
-                    <div className="flex gap-1.5 bg-background p-1 rounded-2xl border border-border overflow-x-auto">
-                      <button
-                        onClick={() => setPoolType("all")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
-                          poolType === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                        }`}
-                      >
-                        Tất cả ({phrases.length})
-                      </button>
-                      <button
-                        onClick={() => setPoolType("essential")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
-                          poolType === "essential" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                        }`}
-                      >
-                        Cốt lõi ({ESSENTIAL_PHRASES.length})
-                      </button>
-                      <button
-                        onClick={() => setPoolType("saved")}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
-                          poolType === "saved" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                        }`}
-                      >
-                        Đã lưu ({userPhrases.length})
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* COUNT */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="font-bold">Số lượng câu mỗi hiệp</span>
-                      <span className="text-primary font-extrabold">{activeTotal} câu</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="3"
-                      max={Math.max(3, filteredPhrases.length)}
-                      step="1"
-                      value={Math.min(questionCount, Math.max(3, filteredPhrases.length))}
-                      onChange={(e) => setQuestionCount(Number(e.target.value))}
-                      className="w-full accent-primary cursor-pointer"
-                    />
-                  </div>
-
-                  {/* DIRECTION */}
-                  <div className="flex flex-col gap-2">
-                    <span className="font-bold text-sm">Chiều phản xạ</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setShowEnglishFirst(false)}
-                        className={`py-3 px-3 rounded-2xl font-bold text-xs md:text-sm border transition-all ${
-                          !showEnglishFirst ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-secondary/50 text-muted-foreground border-border"
-                        }`}
-                      >
-                        🇻🇳 Việt → Anh
-                        <span className="block text-[10px] font-normal opacity-80">Nhìn ý Việt, bật ra câu Anh</span>
-                      </button>
-                      <button
-                        onClick={() => setShowEnglishFirst(true)}
-                        className={`py-3 px-3 rounded-2xl font-bold text-xs md:text-sm border transition-all ${
-                          showEnglishFirst ? "bg-primary text-primary-foreground border-primary shadow-md" : "bg-secondary/50 text-muted-foreground border-border"
-                        }`}
-                      >
-                        🇬🇧 Anh → Việt
-                        <span className="block text-[10px] font-normal opacity-80">Nghe & hiểu nghĩa tức thì</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* DURATION & HANDS-FREE */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="font-bold">Thời gian phản xạ</span>
-                        <span className="text-primary font-extrabold">{duration} giây/câu</span>
+                <>
+                  {/* SETTINGS PANEL */}
+                  <div className="w-full bg-card border border-border rounded-3xl p-5 md:p-6 shadow-sm flex flex-col gap-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="font-bold text-sm">Nguồn câu luyện tập</span>
+                      <div className="flex gap-1.5 bg-background p-1 rounded-2xl border border-border overflow-x-auto">
+                        <button
+                          onClick={() => {
+                            setPoolType("all");
+                            setSelectedIds(phrases.map((p) => p.id));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
+                            poolType === "all" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                          }`}
+                        >
+                          Tất cả ({phrases.length})
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPoolType("essential");
+                            setSelectedIds(ESSENTIAL_PHRASES.map((p) => p.id));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
+                            poolType === "essential" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                          }`}
+                        >
+                          Cốt lõi ({ESSENTIAL_PHRASES.length})
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPoolType("saved");
+                            setSelectedIds(userPhrases.map((p) => p.id));
+                          }}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap ${
+                            poolType === "saved" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+                          }`}
+                        >
+                          Đã lưu ({userPhrases.length})
+                        </button>
                       </div>
-                      <input
-                        type="range"
-                        min="4"
-                        max="14"
-                        step="2"
-                        value={duration}
-                        onChange={(e) => setDuration(Number(e.target.value))}
-                        className="w-full accent-primary cursor-pointer"
-                      />
                     </div>
 
-                    <button
-                      onClick={() => setHandsFree(!handsFree)}
-                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
-                        handsFree ? "bg-emerald-500/15 border-emerald-500 text-emerald-500" : "bg-secondary/40 border-border text-muted-foreground"
-                      }`}
-                    >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                      {/* Direction */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowEnglishFirst(false)}
+                          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs border transition-all ${
+                            !showEnglishFirst ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border"
+                          }`}
+                        >
+                          🇻🇳 Việt → Anh
+                        </button>
+                        <button
+                          onClick={() => setShowEnglishFirst(true)}
+                          className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs border transition-all ${
+                            showEnglishFirst ? "bg-primary text-primary-foreground border-primary" : "bg-secondary/50 text-muted-foreground border-border"
+                          }`}
+                        >
+                          🇬🇧 Anh → Việt
+                        </button>
+                      </div>
+
+                      {/* Duration */}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-bold">Thời gian mỗi câu</span>
+                          <span className="text-primary font-extrabold">{duration}s</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="4"
+                          max="14"
+                          step="2"
+                          value={duration}
+                          onChange={(e) => setDuration(Number(e.target.value))}
+                          className="w-full accent-primary cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Hands-free */}
+                      <button
+                        onClick={() => setHandsFree(!handsFree)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                          handsFree ? "bg-emerald-500/15 border-emerald-500 text-emerald-500" : "bg-secondary/40 border-border text-muted-foreground"
+                        }`}
+                      >
+                        <span className="font-bold text-xs">🎧 Chế độ Rảnh Tay</span>
+                        <span className="font-extrabold text-xs">{handsFree ? "BẬT" : "TẮT"}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={startTraining}
+                        disabled={activeSessionPhrases.length === 0}
+                        className="flex-1 bg-primary text-primary-foreground py-3.5 rounded-2xl font-extrabold text-base hover:opacity-90 shadow-lg disabled:opacity-50"
+                      >
+                        ⚡ Bắt đầu phản xạ ({activeSessionPhrases.length} câu đã chọn)
+                      </button>
+                      <button
+                        onClick={() => setShowAddForm(true)}
+                        className="px-5 py-3.5 rounded-2xl bg-secondary font-bold text-sm hover:opacity-90 shrink-0"
+                      >
+                        + Thêm câu mới
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* PREVIEW LIST OF SENTENCES TO LEARN BEFORE REFLEX */}
+                  <div className="bg-card border border-border rounded-3xl p-5 md:p-6 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <div className="font-bold text-xs">🎧 Chế độ Rảnh Tay</div>
-                        <div className="text-[10px] opacity-80">Tự động đọc đáp án chuẩn</div>
+                        <h2 className="text-lg font-bold flex items-center gap-2">
+                          📋 Danh Sách Câu Luyện Phản Xạ ({poolPhrases.length} câu)
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                          Xem & nghe trước các câu bên dưới, hoặc tích chọn những câu bạn muốn luyện trong lượt này.
+                        </p>
                       </div>
-                      <span className="font-extrabold text-xs">{handsFree ? "BẬT" : "TẮT"}</span>
-                    </button>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={() => setSelectedIds(poolPhrases.map((p) => p.id))}
+                          className="px-3 py-1.5 rounded-xl bg-secondary text-xs font-bold hover:opacity-90"
+                        >
+                          Chọn tất cả
+                        </button>
+                        <button
+                          onClick={() => setSelectedIds([])}
+                          className="px-3 py-1.5 rounded-xl bg-secondary text-xs font-bold hover:opacity-90"
+                        >
+                          Bỏ chọn
+                        </button>
+                      </div>
+                    </div>
+
+                    {poolPhrases.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground text-sm">
+                        Chưa có câu nào trong nhóm này. Hãy lưu câu từ Video hoặc bấm "+ Thêm câu mới".
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[420px] overflow-y-auto pr-1">
+                        {poolPhrases.map((p) => {
+                          const isChecked = selectedIds.includes(p.id);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => toggleSelectPhrase(p.id)}
+                              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
+                                isChecked
+                                  ? "bg-primary/5 border-primary/50"
+                                  : "bg-background border-border opacity-70 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {}}
+                                  className="mt-1 accent-primary w-4 h-4 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-bold text-sm text-foreground leading-snug">{p.text}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {p.translation || "Chưa có bản dịch"}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  speakEnglish(p.text);
+                                }}
+                                className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-xs shrink-0 hover:bg-primary hover:text-primary-foreground"
+                                title="Nghe trước"
+                              >
+                                🔊
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-
-                  <button
-                    onClick={startTraining}
-                    disabled={filteredPhrases.length === 0}
-                    className="w-full bg-primary text-primary-foreground py-4 rounded-2xl font-extrabold text-base md:text-lg hover:opacity-90 shadow-lg disabled:opacity-50"
-                  >
-                    ⚡ Bắt đầu phản xạ ({activeTotal} câu)
-                  </button>
-
-                  <button
-                    onClick={() => setShowAddForm(true)}
-                    className="text-sm font-bold text-primary hover:underline text-center"
-                  >
-                    + Tự thêm mẫu câu giao tiếp của riêng bạn
-                  </button>
-                </div>
+                </>
               )}
             </div>
           ) : (
@@ -507,7 +679,6 @@ export default function ReflexTrainingPage() {
                   {showEnglishFirst ? currentPhrase?.text : currentPhrase?.translation || "Chưa có bản dịch"}
                 </h2>
 
-                {/* Answer reveal box */}
                 <div
                   className={`transition-all duration-300 p-4 rounded-2xl bg-primary/10 border border-primary/30 ${
                     revealAnswer ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"
@@ -519,7 +690,6 @@ export default function ReflexTrainingPage() {
                   </h3>
                 </div>
 
-                {/* Spoken evaluation */}
                 {spokenText && (
                   <div className="p-3 rounded-xl bg-secondary/60 border border-border text-sm">
                     <span className="text-muted-foreground">Bạn đã nói: </span>
@@ -537,7 +707,6 @@ export default function ReflexTrainingPage() {
                 )}
               </div>
 
-              {/* Controls */}
               <div className="w-full flex flex-wrap items-center justify-center gap-2.5 mt-6 pt-4 border-t border-border">
                 <button
                   onClick={startMicForSpeed}
@@ -582,144 +751,193 @@ export default function ReflexTrainingPage() {
 
       {/* ==================== MODE 2: REAL-TIME Q&A SPEAKING REFLEX ==================== */}
       {mode === "qa" && currentQa && (
-        <div className="w-full max-w-2xl mx-auto bg-card border border-border rounded-3xl p-5 md:p-8 shadow-xl space-y-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider bg-primary/15 text-primary px-3 py-1 rounded-full">
-              {currentQa.topic}
-            </span>
-            <span className="text-xs font-mono font-bold text-muted-foreground">
-              Tình huống {qaIndex + 1} / {QA_REFLEX_ITEMS.length}
-            </span>
-          </div>
-
-          <div className="bg-secondary/50 border border-border rounded-2xl p-5 space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold text-muted-foreground">👤 Người bản xứ hỏi bạn:</span>
-              <button
-                onClick={() => speakEnglish(currentQa.questionEn)}
-                className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
-              >
-                🔊 Nghe câu hỏi
-              </button>
-            </div>
-            <h2 className="text-xl md:text-2xl font-extrabold text-foreground leading-snug">
-              "{currentQa.questionEn}"
-            </h2>
-            <p className="text-sm text-muted-foreground">{currentQa.questionVi}</p>
-          </div>
-
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-xs md:text-sm text-amber-500">
-            💡 <b>Gợi ý phản xạ nhanh:</b> {currentQa.hintVi}
-          </div>
-
-          <div className="flex flex-col items-center gap-3 py-2">
+        <div className="w-full max-w-3xl mx-auto space-y-4">
+          {/* AI Generator Bar */}
+          <div className="bg-card border border-border rounded-2xl p-3.5 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+            <input
+              value={qaTopic}
+              onChange={(e) => setQaTopic(e.target.value)}
+              placeholder="Nhập chủ đề muốn AI tạo thêm câu (VD: Công nghệ, Y tế, Phỏng vấn)..."
+              className="flex-1 px-3.5 py-2 rounded-xl bg-background border border-border text-xs md:text-sm focus:outline-none focus:border-primary"
+            />
             <button
-              onClick={startMicForQa}
-              className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-extrabold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
-                isListening ? "bg-red-500 text-white animate-pulse" : "bg-emerald-500 text-black hover:opacity-90"
-              }`}
+              onClick={handleGenerateMoreQa}
+              disabled={generatingQa}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 text-white font-bold text-xs md:text-sm hover:opacity-90 disabled:opacity-60 shrink-0"
             >
-              {isListening ? "⏹ Đang lắng nghe câu trả lời của bạn..." : "🎤 Bấm để trả lời bằng Tiếng Anh"}
+              {generatingQa ? "⏳ Đang tạo 5 câu mới..." : "✨ Tạo thêm 5 câu Hỏi-Đáp AI"}
             </button>
           </div>
 
-          {qaSpoken && qaFeedback && (
-            <div className="bg-background border border-border rounded-2xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-muted-foreground uppercase">Câu trả lời của bạn:</span>
-                <span className="text-sm font-extrabold text-emerald-500">Điểm phản xạ: {qaFeedback.score}%</span>
-              </div>
-              <p className="font-semibold text-base italic">"{qaSpoken}"</p>
-              {qaFeedback.matched.length > 0 && (
-                <p className="text-xs text-emerald-500">
-                  ✓ Đã dùng đúng từ khóa tự nhiên: <b>{qaFeedback.matched.join(", ")}</b>
-                </p>
-              )}
+          {genError && (
+            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-semibold">
+              ⚠️ {genError}
             </div>
           )}
 
-          <div>
-            <button
-              onClick={() => setQaShowSample(!qaShowSample)}
-              className="text-xs font-bold text-primary hover:underline"
-            >
-              {qaShowSample ? "Ẩn câu trả lời mẫu" : "👀 Xem & nghe câu trả lời mẫu tự nhiên nhất"}
-            </button>
-            {qaShowSample && (
-              <div className="mt-2 p-4 rounded-2xl bg-primary/10 border border-primary/30 space-y-1.5">
+          <div className="bg-card border border-border rounded-3xl p-5 md:p-8 shadow-xl space-y-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider bg-primary/15 text-primary px-3 py-1 rounded-full">
+                {currentQa.topic}
+              </span>
+              <span className="text-xs font-mono font-bold text-muted-foreground">
+                Câu {qaIndex + 1} / {qaList.length}
+              </span>
+            </div>
+
+            <div className="bg-secondary/50 border border-border rounded-2xl p-5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-muted-foreground">👤 Người bản xứ hỏi bạn:</span>
+                <button
+                  onClick={() => speakEnglish(currentQa.questionEn)}
+                  className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold"
+                >
+                  🔊 Nghe câu hỏi
+                </button>
+              </div>
+              <h2 className="text-xl md:text-2xl font-extrabold text-foreground leading-snug">
+                "{currentQa.questionEn}"
+              </h2>
+              <p className="text-sm text-muted-foreground">{currentQa.questionVi}</p>
+            </div>
+
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-xs md:text-sm text-amber-500">
+              💡 <b>Gợi ý phản xạ nhanh:</b> {currentQa.hintVi}
+            </div>
+
+            <div className="flex flex-col items-center gap-3 py-2">
+              <button
+                onClick={startMicForQa}
+                className={`w-full sm:w-auto px-8 py-4 rounded-2xl font-extrabold text-base shadow-lg transition-all flex items-center justify-center gap-2 ${
+                  isListening ? "bg-red-500 text-white animate-pulse" : "bg-emerald-500 text-black hover:opacity-90"
+                }`}
+              >
+                {isListening ? "⏹ Đang lắng nghe câu trả lời của bạn..." : "🎤 Bấm để trả lời bằng Tiếng Anh"}
+              </button>
+            </div>
+
+            {qaSpoken && qaFeedback && (
+              <div className="bg-background border border-border rounded-2xl p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-primary uppercase">Câu trả lời gợi ý:</span>
-                  <button
-                    onClick={() => speakEnglish(currentQa.sampleAnswerEn)}
-                    className="text-xs font-bold bg-primary text-primary-foreground px-2.5 py-1 rounded-lg"
-                  >
-                    🔊 Nghe mẫu
-                  </button>
+                  <span className="text-xs font-bold text-muted-foreground uppercase">Câu trả lời của bạn:</span>
+                  <span className="text-sm font-extrabold text-emerald-500">Điểm phản xạ: {qaFeedback.score}%</span>
                 </div>
-                <p className="font-bold text-base text-foreground">{currentQa.sampleAnswerEn}</p>
-                <p className="text-xs text-muted-foreground">{currentQa.sampleAnswerVi}</p>
+                <p className="font-semibold text-base italic">"{qaSpoken}"</p>
+                {qaFeedback.matched.length > 0 && (
+                  <p className="text-xs text-emerald-500">
+                    ✓ Đã dùng đúng từ khóa tự nhiên: <b>{qaFeedback.matched.join(", ")}</b>
+                  </p>
+                )}
               </div>
             )}
-          </div>
 
-          <div className="flex justify-between pt-3 border-t border-border">
-            <button
-              disabled={qaIndex === 0}
-              onClick={() => {
-                const prev = qaIndex - 1;
-                setQaIndex(prev);
-                setQaSpoken("");
-                setQaFeedback(null);
-                setQaShowSample(false);
-                speakEnglish(QA_REFLEX_ITEMS[prev].questionEn);
-              }}
-              className="px-4 py-2 rounded-xl bg-secondary font-bold text-xs md:text-sm disabled:opacity-40"
-            >
-              ← Câu trước
-            </button>
-            <button
-              onClick={() => {
-                const next = (qaIndex + 1) % QA_REFLEX_ITEMS.length;
-                setQaIndex(next);
-                setQaSpoken("");
-                setQaFeedback(null);
-                setQaShowSample(false);
-                speakEnglish(QA_REFLEX_ITEMS[next].questionEn);
-              }}
-              className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs md:text-sm"
-            >
-              Câu hỏi tiếp theo →
-            </button>
+            <div>
+              <button
+                onClick={() => setQaShowSample(!qaShowSample)}
+                className="text-xs font-bold text-primary hover:underline"
+              >
+                {qaShowSample ? "Ẩn câu trả lời mẫu" : "👀 Xem & nghe câu trả lời mẫu tự nhiên nhất"}
+              </button>
+              {qaShowSample && (
+                <div className="mt-2 p-4 rounded-2xl bg-primary/10 border border-primary/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary uppercase">Câu trả lời gợi ý:</span>
+                    <button
+                      onClick={() => speakEnglish(currentQa.sampleAnswerEn)}
+                      className="text-xs font-bold bg-primary text-primary-foreground px-2.5 py-1 rounded-lg"
+                    >
+                      🔊 Nghe mẫu
+                    </button>
+                  </div>
+                  <p className="font-bold text-base text-foreground">{currentQa.sampleAnswerEn}</p>
+                  <p className="text-xs text-muted-foreground">{currentQa.sampleAnswerVi}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between pt-3 border-t border-border">
+              <button
+                disabled={qaIndex === 0}
+                onClick={() => {
+                  const prev = qaIndex - 1;
+                  setQaIndex(prev);
+                  setQaSpoken("");
+                  setQaFeedback(null);
+                  setQaShowSample(false);
+                  speakEnglish(qaList[prev].questionEn);
+                }}
+                className="px-4 py-2 rounded-xl bg-secondary font-bold text-xs md:text-sm disabled:opacity-40"
+              >
+                ← Câu trước
+              </button>
+              <button
+                onClick={() => {
+                  const next = (qaIndex + 1) % qaList.length;
+                  setQaIndex(next);
+                  setQaSpoken("");
+                  setQaFeedback(null);
+                  setQaShowSample(false);
+                  speakEnglish(qaList[next].questionEn);
+                }}
+                className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs md:text-sm"
+              >
+                Câu hỏi tiếp theo →
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ==================== MODE 3: GOLDEN SENTENCE PATTERNS ==================== */}
       {mode === "patterns" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {GOLDEN_PATTERNS.map((item) => (
-            <div
-              key={item.id}
-              onClick={() => speakEnglish(item.exampleEn)}
-              className="bg-card border border-border p-5 rounded-3xl shadow-sm hover:border-primary/50 transition-all cursor-pointer flex flex-col justify-between gap-3"
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-2xl p-3.5 flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between">
+            <input
+              value={patternTopic}
+              onChange={(e) => setPatternTopic(e.target.value)}
+              placeholder="Nhập chủ đề muốn AI tạo thêm khung câu (VD: Đàm phán, Du lịch, Thuyết trình)..."
+              className="flex-1 px-3.5 py-2 rounded-xl bg-background border border-border text-xs md:text-sm focus:outline-none focus:border-primary"
+            />
+            <button
+              onClick={handleGenerateMorePatterns}
+              disabled={generatingPatterns}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-emerald-500 text-white font-bold text-xs md:text-sm hover:opacity-90 disabled:opacity-60 shrink-0"
             >
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider bg-primary/15 text-primary px-3 py-1 rounded-full">
-                    Khung câu #{item.id}
-                  </span>
-                  <span className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm">🔊</span>
-                </div>
-                <h3 className="text-lg font-extrabold text-primary mt-3">{item.pattern}</h3>
-                <p className="text-sm font-semibold text-foreground mt-1">{item.meaningVi}</p>
-                <div className="mt-3 p-3 rounded-2xl bg-secondary/50 border border-border">
-                  <p className="text-sm font-bold text-foreground">"{item.exampleEn}"</p>
-                  <p className="text-xs text-muted-foreground mt-1">{item.exampleVi}</p>
-                </div>
-              </div>
-              <p className="text-xs text-amber-500">💡 {item.tip}</p>
+              {generatingPatterns ? "⏳ Đang tạo 5 khung câu..." : "✨ Tạo thêm 5 Khung câu vàng AI"}
+            </button>
+          </div>
+
+          {genError && (
+            <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 text-xs font-semibold">
+              ⚠️ {genError}
             </div>
-          ))}
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {patternList.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => speakEnglish(item.exampleEn)}
+                className="bg-card border border-border p-5 rounded-3xl shadow-sm hover:border-primary/50 transition-all cursor-pointer flex flex-col justify-between gap-3"
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider bg-primary/15 text-primary px-3 py-1 rounded-full">
+                      Khung câu #{item.id}
+                    </span>
+                    <span className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm">🔊</span>
+                  </div>
+                  <h3 className="text-lg font-extrabold text-primary mt-3">{item.pattern}</h3>
+                  <p className="text-sm font-semibold text-foreground mt-1">{item.meaningVi}</p>
+                  <div className="mt-3 p-3 rounded-2xl bg-secondary/50 border border-border">
+                    <p className="text-sm font-bold text-foreground">"{item.exampleEn}"</p>
+                    <p className="text-xs text-muted-foreground mt-1">{item.exampleVi}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-amber-500">💡 {item.tip}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

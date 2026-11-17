@@ -119,10 +119,10 @@ export default function Dashboard() {
       </div>
 
       {/* QUICK ACTION PILLS FOR MOBILE & DESKTOP */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Link
           href="/ai-teacher"
-          className="bg-gradient-to-br from-indigo-500/15 to-emerald-500/15 border-2 border-primary/50 hover:border-primary p-4 rounded-2xl flex flex-col gap-1 shadow-sm transition-all col-span-2 sm:col-span-1"
+          className="bg-gradient-to-br from-indigo-500/15 to-emerald-500/15 border-2 border-primary/50 hover:border-primary p-4 rounded-2xl flex flex-col gap-1 shadow-sm transition-all"
         >
           <span className="text-2xl">🤖</span>
           <span className="font-bold text-sm text-primary">Gia sư Gemini AI</span>
@@ -135,14 +135,6 @@ export default function Dashboard() {
           <span className="text-2xl">🃏</span>
           <span className="font-bold text-sm">Học từ giao tiếp</span>
           <span className="text-xs text-muted-foreground">Flashcard & Quiz</span>
-        </Link>
-        <Link
-          href="/phrases"
-          className="bg-card border border-border hover:border-primary p-4 rounded-2xl flex flex-col gap-1 shadow-sm transition-all"
-        >
-          <span className="text-2xl">🎭</span>
-          <span className="font-bold text-sm">Đóng vai Roleplay</span>
-          <span className="text-xs text-muted-foreground">{ROLEPLAY_SCENARIOS.length} tình huống</span>
         </Link>
         <Link
           href="/reflex"

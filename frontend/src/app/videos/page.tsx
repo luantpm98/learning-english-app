@@ -514,54 +514,86 @@ export default function VideoLibraryPage() {
 
         {/* SAVED TAB */}
         {activeTab === 'saved' && !activeChannelId && (
-          <div className="space-y-10">
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card border border-border rounded-2xl p-4 shadow-sm">
+              <div>
+                <h2 className="text-lg md:text-xl font-bold flex items-center gap-2">
+                  ⭐ Bộ Sưu Tập Video Đã Lưu ({videos.length})
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Nhấn vào bất kỳ video nào để mở lại phụ đề song ngữ, luyện Shadowing và Chép chính tả.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-xs font-bold hover:opacity-90 shrink-0 w-fit"
+              >
+                + Tìm thêm video mới
+              </button>
+            </div>
+
             {videos.length === 0 ? (
-               <div className="col-span-full text-center text-muted-foreground py-10">You haven't saved any videos yet.</div>
+              <div className="bg-card border border-border rounded-3xl p-10 text-center text-muted-foreground flex flex-col items-center gap-3">
+                <div className="text-5xl">🎬</div>
+                <h3 className="text-lg font-bold text-foreground">Chưa có video nào trong danh sách lưu</h3>
+                <p className="text-sm max-w-md">
+                  Hãy mở tab <b>Khám phá</b>, chọn một video tiếng Anh bạn thích và bấm nút <b>⭐ Lưu</b> để học lại bất cứ lúc nào.
+                </p>
+                <button
+                  onClick={() => setActiveTab('discover')}
+                  className="bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-bold text-sm mt-2"
+                >
+                  Khám phá Video ngay
+                </button>
+              </div>
             ) : (
-              Object.entries(
-                videos.reduce((acc: any, v: any) => {
-                  const channel = v.author || "Other Channels";
-                  const playlist = v.playlistName || "All Videos";
-                  if (!acc[channel]) acc[channel] = {};
-                  if (!acc[channel][playlist]) acc[channel][playlist] = [];
-                  acc[channel][playlist].push(v);
-                  return acc;
-                }, {})
-              ).map(([channelName, playlists]: any, cIdx) => (
-                <div key={cIdx} className="bg-card/30 rounded-2xl p-6 border border-border">
-                  <h2 className="text-2xl font-bold mb-6 border-b border-border pb-3 text-primary">{channelName}</h2>
-                  
-                  <div className="space-y-8">
-                    {Object.entries(playlists).map(([playlistName, pVideos]: any, pIdx) => (
-                      <div key={pIdx}>
-                        {playlistName !== "All Videos" && <h3 className="text-xl font-semibold mb-4 opacity-90 text-foreground flex items-center gap-2"><span className="text-muted-foreground">▶</span> {playlistName}</h3>}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                          {pVideos.map((v: any) => (
-                            <div key={v.id} onClick={() => router.push(`/videos/${v.id}`)} className="group bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col cursor-pointer">
-                              <div className="relative aspect-video bg-black">
-                                <img src={`https://img.youtube.com/vi/${v.youtubeId}/mqdefault.jpg`} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt="thumbnail" />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30 z-10">
-                                  <div className="w-16 h-16 bg-primary text-white rounded-full flex items-center justify-center text-3xl pl-1 shadow-lg">▶</div>
-                                </div>
-                                <button onClick={(e) => unsaveVideo(e, v.id)} className="absolute top-2 right-2 bg-black/60 hover:bg-red-500 text-white w-8 h-8 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-all z-20" title="Remove from saved">
-                                  ✕
-                                </button>
-                              </div>
-                              <div className="p-4 flex flex-col flex-1">
-                                <h3 className="font-bold text-base leading-tight mb-2 line-clamp-3 group-hover:text-primary transition-colors">{v.title}</h3>
-                                <div className="mt-auto flex justify-between items-center text-sm text-muted-foreground">
-                                   <span>{v.level || "Intermediate"}</span>
-                                   <span className="bg-secondary px-2 py-1 rounded">Saved</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                {videos.map((v: any) => (
+                  <div
+                    key={v.id}
+                    onClick={() => router.push(`/videos/${v.id}`)}
+                    className="group bg-card border border-border rounded-3xl overflow-hidden shadow-sm hover:shadow-xl hover:border-primary/50 transition-all flex flex-col cursor-pointer"
+                  >
+                    <div className="relative aspect-video bg-black overflow-hidden">
+                      <img
+                        src={`https://img.youtube.com/vi/${v.youtubeId}/mqdefault.jpg`}
+                        className="w-full h-full object-cover opacity-90 group-hover:scale-105 group-hover:opacity-100 transition-all duration-300"
+                        alt={v.title}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent flex items-center justify-center">
+                        <div className="w-12 h-12 bg-primary/90 text-primary-foreground rounded-full flex items-center justify-center text-xl pl-0.5 shadow-lg group-hover:scale-110 transition-transform">
+                          ▶
                         </div>
                       </div>
-                    ))}
+                      <span className="absolute top-2.5 left-2.5 bg-black/75 backdrop-blur-sm text-white text-[10px] font-bold px-2.5 py-1 rounded-full">
+                        {v.level || "Giao tiếp"}
+                      </span>
+                    </div>
+
+                    <div className="p-4 flex flex-col flex-1 justify-between gap-3">
+                      <div>
+                        <h3 className="font-bold text-sm md:text-base leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                          {v.title}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-1">
+                          {v.author || "YouTube English"}
+                        </p>
+                      </div>
+
+                      <div className="pt-3 border-t border-border flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-primary">▶ Học tiếp ngay</span>
+                        <button
+                          onClick={(e) => unsaveVideo(e, v.id)}
+                          className="text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500 hover:text-white px-2.5 py-1 rounded-lg transition-colors"
+                          title="Bỏ lưu video này"
+                        >
+                          ✕ Bỏ lưu
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         )}

@@ -54,7 +54,6 @@ export default function Sidebar() {
     { href: "/ai-teacher", label: "Gia sư Gemini AI", shortLabel: "Gia sư AI", icon: "🤖" },
     { href: "/videos", label: "Thư viện Video", shortLabel: "Video", icon: "🎬" },
     { href: "/vocabulary", label: "Từ vựng 4 Chế độ", shortLabel: "Từ vựng", icon: "🗂️" },
-    { href: "/phrases", label: "Giao tiếp & Roleplay", shortLabel: "Giao tiếp", icon: "🎭" },
     { href: "/reflex", label: "Phản xạ câu", shortLabel: "Phản xạ", icon: "⚡" },
     { href: "/review", label: "Ôn tập SRS", shortLabel: "Ôn SRS", icon: "🧠" },
   ];

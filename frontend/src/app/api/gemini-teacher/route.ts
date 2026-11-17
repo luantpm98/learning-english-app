@@ -51,25 +51,185 @@ const FALLBACK_REPLIES: Record<string, { en: string; vi: string; tip: string }[]
   ],
 };
 
+async function callGemini(apiKey: string, payload: any) {
+  // Prefer modern fast models, then discover available models if needed
+  let candidateModels = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-latest",
+  ];
+
+  // Try calling candidate models
+  let lastError = "";
+  for (const modelName of candidateModels) {
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(
+          apiKey
+        )}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return { ok: true, model: modelName, text };
+      } else {
+        const errBody = await resp.text();
+        lastError = `${resp.status}: ${errBody}`;
+        // If API key itself is invalid (400 API_KEY_INVALID / 403), stop immediately
+        if (resp.status === 400 && errBody.includes("API_KEY_INVALID")) {
+          return { ok: false, error: "API Key không hợp lệ. Vui lòng kiểm tra lại mã key từ Google AI Studio." };
+        }
+        if (resp.status === 403) {
+          return { ok: false, error: "API Key bị từ chối quyền truy cập (403). Vui lòng kiểm tra key trên Google AI Studio." };
+        }
+      }
+    } catch (e: any) {
+      lastError = e.message || "Network error";
+    }
+  }
+
+  // Fallback: dynamically list models enabled for this key and pick the first generateContent model
+  try {
+    const listResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
+    );
+    if (listResp.ok) {
+      const listData = await listResp.json();
+      const validModel = (listData.models || []).find(
+        (m: any) =>
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes("generateContent") &&
+          m.name?.includes("gemini")
+      );
+      if (validModel) {
+        const cleanName = validModel.name.replace(/^models\//, "");
+        const resp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${cleanName}:generateContent?key=${encodeURIComponent(
+            apiKey
+          )}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+        if (resp.ok) {
+          const data = await resp.json();
+          const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) return { ok: true, model: cleanName, text };
+        }
+      }
+    }
+  } catch {}
+
+  return { ok: false, error: lastError || "Không thể kết nối Gemini API" };
+}
+
+function safeParseJson(rawText: string) {
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+    if (match) {
+      return JSON.parse(match[0]);
+    }
+    throw new Error("Invalid JSON");
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      action = "chat",
       message,
       history = [],
       theme = "daily life",
       scenario = "hobbies",
+      topic = "Daily Communication",
       apiKey,
     } = body;
 
+    const activeKey = String(apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "").trim();
+
+    // 1. TEST CONNECTION ACTION
+    if (action === "test") {
+      if (!activeKey) {
+        return NextResponse.json({ ok: false, error: "Vui lòng nhập API Key" }, { status: 400 });
+      }
+      const res = await callGemini(activeKey, {
+        contents: [{ role: "user", parts: [{ text: "Reply with just: OK" }] }],
+      });
+      if (!res.ok) {
+        return NextResponse.json({ ok: false, error: res.error }, { status: 400 });
+      }
+      return NextResponse.json({ ok: true, model: res.model, message: `Kết nối thành công (${res.model})!` });
+    }
+
+    // 2. GENERATE NEW REFLEX ITEMS (Q&A or Golden Patterns)
+    if (action === "generate_qa" || action === "generate_patterns") {
+      if (!activeKey) {
+        return NextResponse.json(
+          { error: "Chưa có Gemini API Key. Đang dùng kho câu mở rộng có sẵn." },
+          { status: 400 }
+        );
+      }
+
+      const prompt =
+        action === "generate_qa"
+          ? `Generate 5 brand new, practical English spoken Q&A reflex exercises for Vietnamese learners on the topic "${topic}".
+Return strictly a JSON array (no markdown) of 5 objects with these exact keys:
+[
+  {
+    "topic": "${topic}",
+    "questionEn": "Natural spoken English question",
+    "questionVi": "Vietnamese translation of the question",
+    "hintVi": "Short Vietnamese hint on how to answer",
+    "sampleAnswerEn": "Natural native-like English answer (1-2 sentences)",
+    "sampleAnswerVi": "Vietnamese translation of sample answer",
+    "keywords": ["word1", "word2", "word3", "word4"]
+  }
+]`
+          : `Generate 5 brand new, high-frequency English speaking sentence patterns (Khung câu vàng) for Vietnamese learners on the topic "${topic}".
+Return strictly a JSON array (no markdown) of 5 objects with these exact keys:
+[
+  {
+    "pattern": "Pattern structure e.g. I'm thinking about + [V-ing]...",
+    "meaningVi": "Vietnamese meaning",
+    "exampleEn": "Natural spoken English example",
+    "exampleVi": "Vietnamese translation",
+    "tip": "Practical Vietnamese usage tip"
+  }
+]`;
+
+      const res = await callGemini(activeKey, {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.9 },
+      });
+
+      if (!res.ok || !res.text) {
+        return NextResponse.json({ error: res.error || "Không tạo được câu mới" }, { status: 502 });
+      }
+
+      const items = safeParseJson(res.text);
+      return NextResponse.json({ ok: true, items: Array.isArray(items) ? items : [] });
+    }
+
+    // 3. CONVERSATIONAL AI TEACHER CHAT
     const cleanMsg = String(message || "").trim();
     if (!cleanMsg) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    const activeKey = apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-
-    // If no Gemini API key is configured, return smart structured fallback
     if (!activeKey) {
       const pool = FALLBACK_REPLIES[theme] || FALLBACK_REPLIES["daily life"];
       const picked = pool[history.length % pool.length];
@@ -90,80 +250,64 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const systemPrompt = `You are a world-class English Speaking Coach & AI Teacher (adapted from Gemini Teacher).
-The student is a Vietnamese learner practicing spoken English in the theme "${theme}" and scenario "${scenario}".
-
-Analyze the student's latest English utterance and respond strictly in valid JSON (no markdown fences) with these exact keys:
+    const instruction = `You are a friendly, expert English Speaking Coach for a Vietnamese learner practicing the theme "${theme}" and scenario "${scenario}".
+Evaluate the learner's English sentence and reply STRICTLY as valid JSON (no markdown fences) with these exact keys:
 {
-  "userRecognized": "the student's sentence",
-  "score": <integer 0-100 evaluating grammar, naturalness, and clarity>,
-  "grammarFeedback": "Short, encouraging feedback in Vietnamese explaining any grammar/wording mistake and how to fix it (or praising them if correct).",
-  "betterExpression": "A more natural, native-like way to say what the student meant in English.",
-  "replyEn": "Your natural conversational response + follow-up question in English to keep the roleplay going (1-2 sentences).",
-  "replyVi": "Accurate Vietnamese translation of replyEn.",
-  "nextPracticeSentence": "One short, useful English phrase/sentence related to this scenario for the student to try next."
+  "userRecognized": "the learner's sentence",
+  "score": <integer 0-100>,
+  "grammarFeedback": "Short feedback in Vietnamese explaining grammar/wording mistakes or praising them",
+  "betterExpression": "A more natural, native-like English version of what they said",
+  "replyEn": "Your natural conversational reply + 1 follow-up question in English",
+  "replyVi": "Vietnamese translation of replyEn",
+  "nextPracticeSentence": "One short useful English phrase they can try next"
 }`;
 
     const contents = [
+      {
+        role: "user",
+        parts: [{ text: instruction }],
+      },
+      {
+        role: "model",
+        parts: [{ text: '{"replyEn":"Understood! Ready to coach."}' }],
+      },
       ...history.slice(-6).map((h: any) => ({
         role: h.role === "assistant" ? "model" : "user",
         parts: [{ text: h.text }],
       })),
       {
         role: "user",
-        parts: [{ text: cleanMsg }],
+        parts: [{ text: `Student said: "${cleanMsg}"` }],
       },
     ];
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
-    let aiJson: any = null;
-    let lastError = "";
+    const res = await callGemini(activeKey, {
+      contents,
+      generationConfig: { temperature: 0.7 },
+    });
 
-    for (const modelName of modelsToTry) {
-      try {
-        const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(
-            activeKey
-          )}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              systemInstruction: { parts: [{ text: systemPrompt }] },
-              contents,
-              generationConfig: {
-                temperature: 0.7,
-                responseMimeType: "application/json",
-              },
-            }),
-          }
-        );
-
-        if (!resp.ok) {
-          lastError = await resp.text();
-          continue;
-        }
-
-        const data = await resp.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawText) {
-          const cleaned = rawText.replace(/```json|```/g, "").trim();
-          aiJson = JSON.parse(cleaned);
-          break;
-        }
-      } catch (e: any) {
-        lastError = e.message || "Gemini call error";
-      }
-    }
-
-    if (!aiJson) {
+    if (!res.ok || !res.text) {
       return NextResponse.json(
-        { error: `Không thể gọi Gemini API (${lastError.slice(0, 120)}). Vui lòng kiểm tra lại API Key.` },
+        { error: res.error || "Không thể kết nối Gemini API. Vui lòng kiểm tra lại API Key." },
         { status: 502 }
       );
     }
 
-    return NextResponse.json({ mode: "gemini", ...aiJson });
+    try {
+      const aiJson = safeParseJson(res.text);
+      return NextResponse.json({ mode: "gemini", model: res.model, ...aiJson });
+    } catch {
+      return NextResponse.json({
+        mode: "gemini",
+        model: res.model,
+        userRecognized: cleanMsg,
+        score: 85,
+        grammarFeedback: "Gia sư AI đã phản hồi:",
+        betterExpression: cleanMsg,
+        replyEn: res.text,
+        replyVi: "",
+      });
+    }
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "Server error" }, { status: 500 });
   }

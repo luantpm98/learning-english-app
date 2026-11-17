@@ -176,3 +176,32 @@ export const lookupWordDictionary = async (
     };
   }
 };
+
+// Fetch real illustrative image for a vocabulary word (Wikipedia thumbnail -> Pollinations illustration)
+export const fetchWordImage = async (word: string): Promise<string> => {
+  const clean = word.trim().toLowerCase().split(/\s+/)[0];
+  const fallbackUrl = `https://image.pollinations.ai/prompt/clean%20colorful%20flat%20illustration%20representing%20the%20english%20word%20${encodeURIComponent(
+    word
+  )}?width=480&height=270&nologo=true`;
+
+  if (typeof window !== "undefined") {
+    const cacheKey = `word_img_${word.toLowerCase()}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const thumb = data?.thumbnail?.source;
+        if (thumb && !thumb.endsWith(".svg")) {
+          localStorage.setItem(cacheKey, thumb);
+          return thumb;
+        }
+      }
+    } catch {}
+    localStorage.setItem(cacheKey, fallbackUrl);
+  }
+
+  return fallbackUrl;
+};

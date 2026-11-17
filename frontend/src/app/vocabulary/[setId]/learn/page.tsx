@@ -1,5 +1,5 @@
 "use client";
-import { getUserKey, API_URL, speakEnglish, saveSrsWord, lookupWordDictionary } from "../../../../utils/storage";
+import { getUserKey, API_URL, speakEnglish, saveSrsWord, lookupWordDictionary, fetchWordImage } from "../../../../utils/storage";
 import { BUILTIN_VOCAB_SETS } from "../../../../utils/curatedData";
 
 import { useState, useEffect, useMemo } from "react";
@@ -32,6 +32,7 @@ export default function LearnSetPage() {
   const [savedWordIds, setSavedWordIds] = useState<number[]>([]);
   const [sessionScore, setSessionScore] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [wordImageUrl, setWordImageUrl] = useState<string>("");
 
   // Quiz state
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -101,10 +102,15 @@ export default function LearnSetPage() {
 
   const currentWord = sessionWords[currentIndex];
 
-  // Auto-enrich real dictionary example/phonetic when viewing a placeholder word
+  // Auto-enrich real dictionary example/phonetic + illustrative image when viewing a word
   useEffect(() => {
     if (!currentWord) return;
     speakEnglish(currentWord.word);
+
+    let active = true;
+    fetchWordImage(currentWord.word).then((url) => {
+      if (active) setWordImageUrl(url);
+    });
 
     if (
       currentWord.definition?.startsWith("Definition of ") ||
@@ -126,6 +132,9 @@ export default function LearnSetPage() {
         );
       });
     }
+    return () => {
+      active = false;
+    };
   }, [currentIndex, mode, batchOffset, currentWord?.id]);
 
   // Generate 4 multiple-choice options whenever currentWord changes
@@ -375,17 +384,41 @@ export default function LearnSetPage() {
             </div>
 
             {!isFlipped ? (
-              <div className="my-4">
-                <h2 className="text-4xl md:text-5xl font-extrabold text-primary mb-3">{currentWord.word}</h2>
+              <div className="my-2 flex flex-col items-center">
+                {wordImageUrl && (
+                  <div className="w-48 h-28 md:w-56 md:h-32 rounded-2xl overflow-hidden mb-3 border border-border bg-secondary/40 shadow-sm">
+                    <img
+                      src={wordImageUrl}
+                      alt={currentWord.word}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
+                <h2 className="text-4xl md:text-5xl font-extrabold text-primary mb-2">{currentWord.word}</h2>
                 {currentWord.phonetic && (
                   <p className="text-base md:text-lg text-muted-foreground font-mono">{currentWord.phonetic}</p>
                 )}
-                <p className="text-xs text-muted-foreground mt-8 bg-secondary px-4 py-1.5 rounded-full inline-block">
+                <p className="text-xs text-muted-foreground mt-4 bg-secondary px-4 py-1.5 rounded-full inline-block">
                   👆 Chạm vào thẻ để lật xem nghĩa & câu ví dụ
                 </p>
               </div>
             ) : (
-              <div className="my-2 space-y-3">
+              <div className="my-2 space-y-3 flex flex-col items-center">
+                {wordImageUrl && (
+                  <div className="w-40 h-24 rounded-2xl overflow-hidden border border-border bg-secondary/40 shadow-sm">
+                    <img
+                      src={wordImageUrl}
+                      alt={currentWord.word}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                )}
                 <div className="text-sm font-bold text-muted-foreground">
                   {currentWord.word} {currentWord.phonetic}
                 </div>
@@ -441,10 +474,22 @@ export default function LearnSetPage() {
       {/* MODE 2: MULTIPLE CHOICE QUIZ */}
       {mode === "quiz" && currentWord && (
         <div className="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full gap-5">
-          <div className="w-full bg-card border border-border rounded-3xl p-6 md:p-8 text-center shadow-lg">
+          <div className="w-full bg-card border border-border rounded-3xl p-6 md:p-8 text-center shadow-lg flex flex-col items-center">
             <span className="text-xs font-bold uppercase text-muted-foreground">
               Câu {currentIndex + 1} / {sessionWords.length} · Chọn nghĩa đúng
             </span>
+            {wordImageUrl && (
+              <div className="w-44 h-28 rounded-2xl overflow-hidden mt-3 border border-border bg-secondary/40">
+                <img
+                  src={wordImageUrl}
+                  alt={currentWord.word}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            )}
             <div className="flex items-center justify-center gap-3 mt-3">
               <h2 className="text-3xl md:text-4xl font-extrabold text-primary">{currentWord.word}</h2>
               <button
@@ -501,10 +546,22 @@ export default function LearnSetPage() {
       {/* MODE 3: LISTENING & SPELLING DICTATION */}
       {mode === "listening" && currentWord && (
         <div className="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full gap-5">
-          <div className="w-full bg-card border border-border rounded-3xl p-6 md:p-8 text-center shadow-lg space-y-4">
+          <div className="w-full bg-card border border-border rounded-3xl p-6 md:p-8 text-center shadow-lg space-y-4 flex flex-col items-center">
             <span className="text-xs font-bold uppercase text-muted-foreground">
               Nghe phát âm & Gõ lại từ tiếng Anh
             </span>
+            {wordImageUrl && (
+              <div className="w-40 h-24 rounded-2xl overflow-hidden border border-border bg-secondary/40">
+                <img
+                  src={wordImageUrl}
+                  alt={currentWord.word}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            )}
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => speakEnglish(currentWord.word, 0.95)}

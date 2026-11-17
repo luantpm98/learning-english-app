@@ -71,6 +71,8 @@ export default function GeminiTeacherPage() {
   const [apiKey, setApiKey] = useState("");
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState("");
+  const [testingKey, setTestingKey] = useState(false);
+  const [keyStatus, setKeyStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -209,12 +211,40 @@ export default function GeminiTeacherPage() {
     recognition.start();
   };
 
-  const saveApiKey = (e: React.FormEvent) => {
+  const saveApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleaned = tempKey.trim();
-    setApiKey(cleaned);
-    localStorage.setItem("gemini_api_key", cleaned);
-    setShowKeyModal(false);
+    if (!cleaned) {
+      setApiKey("");
+      localStorage.removeItem("gemini_api_key");
+      setKeyStatus(null);
+      setShowKeyModal(false);
+      return;
+    }
+
+    setTestingKey(true);
+    setKeyStatus(null);
+    try {
+      const res = await axios.post("/api/gemini-teacher", {
+        action: "test",
+        apiKey: cleaned,
+      });
+      if (res.data?.ok) {
+        setApiKey(cleaned);
+        localStorage.setItem("gemini_api_key", cleaned);
+        setKeyStatus({ type: "ok", text: res.data.message || "Kết nối Gemini thành công!" });
+        setTimeout(() => setShowKeyModal(false), 900);
+      } else {
+        setKeyStatus({ type: "err", text: res.data?.error || "API Key không hợp lệ." });
+      }
+    } catch (err: any) {
+      setKeyStatus({
+        type: "err",
+        text: err.response?.data?.error || "Không thể kết nối tới Gemini API. Vui lòng kiểm tra lại Key.",
+      });
+    } finally {
+      setTestingKey(false);
+    }
   };
 
   return (
@@ -429,10 +459,25 @@ export default function GeminiTeacherPage() {
               <input
                 type="password"
                 value={tempKey}
-                onChange={(e) => setTempKey(e.target.value)}
+                onChange={(e) => {
+                  setTempKey(e.target.value);
+                  setKeyStatus(null);
+                }}
                 placeholder="AIzaSy..."
                 className="w-full px-4 py-3 rounded-xl bg-background border border-border focus:outline-none focus:border-primary text-sm font-mono"
               />
+              {keyStatus && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-semibold ${
+                    keyStatus.type === "ok"
+                      ? "bg-emerald-500/15 text-emerald-500"
+                      : "bg-red-500/15 text-red-500"
+                  }`}
+                >
+                  {keyStatus.type === "ok" ? "✅ " : "⚠️ "}
+                  {keyStatus.text}
+                </div>
+              )}
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -443,9 +488,10 @@ export default function GeminiTeacherPage() {
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm"
+                  disabled={testingKey}
+                  className="flex-1 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm disabled:opacity-60"
                 >
-                  Lưu Key
+                  {testingKey ? "⏳ Đang kiểm tra..." : "Kiểm tra & Lưu Key"}
                 </button>
               </div>
             </form>

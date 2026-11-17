@@ -1,13 +1,24 @@
 "use client";
-import { getSrsMap, saveSrsWord, speakEnglish, SrsItem } from "../../utils/storage";
-import { BUILTIN_VOCAB_SETS } from "../../utils/curatedData";
+import { getSrsMap, saveSrsWord, speakEnglish, SrsItem, getUserKey } from "../../utils/storage";
+import { BUILTIN_VOCAB_SETS, ESSENTIAL_PHRASES } from "../../utils/curatedData";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 
+function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 export default function DailyReviewPage() {
   const [allSrs, setAllSrs] = useState<SrsItem[]>([]);
+  const [reviewPool, setReviewPool] = useState<SrsItem[]>([]);
   const [dueQueue, setDueQueue] = useState<SrsItem[]>([]);
+  const [selectedCount, setSelectedCount] = useState<number>(10);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isReviewing, setIsReviewing] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -17,11 +28,77 @@ export default function DailyReviewPage() {
     loadSrsData();
   }, []);
 
+  const buildMasterPool = (): SrsItem[] => {
+    const map = getSrsMap();
+    const srsList = Object.values(map);
+
+    // Combine SRS words + saved words + curated vocab sets + essential phrases so pool is always rich & varied
+    const extraPool: SrsItem[] = [];
+    const seen = new Set(srsList.map((i) => i.word.toLowerCase()));
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(getUserKey("savedWords")) || "[]");
+      for (const w of saved) {
+        const key = String(w.word || "").toLowerCase();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          extraPool.push({
+            id: w.id || Date.now(),
+            word: w.word,
+            phonetic: w.phonetic || `/${w.word}/`,
+            translation: w.translation || "Từ vựng đã lưu",
+            definition: w.definition || "",
+            level: 1,
+            nextReview: 0,
+            lastReviewed: 0,
+          });
+        }
+      }
+    } catch {}
+
+    for (const set of BUILTIN_VOCAB_SETS) {
+      for (const w of set.words) {
+        const key = w.word.toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          extraPool.push({
+            id: w.id,
+            word: w.word,
+            phonetic: w.phonetic,
+            translation: w.translation,
+            definition: w.definition,
+            level: 1,
+            nextReview: 0,
+            lastReviewed: 0,
+          });
+        }
+      }
+    }
+
+    for (const p of ESSENTIAL_PHRASES) {
+      const key = p.text.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        extraPool.push({
+          id: p.id,
+          word: p.text,
+          phonetic: p.category,
+          translation: p.translation,
+          definition: p.usage,
+          level: 1,
+          nextReview: 0,
+          lastReviewed: 0,
+        });
+      }
+    }
+
+    return [...srsList, ...extraPool];
+  };
+
   const loadSrsData = () => {
     const map = getSrsMap();
     let list = Object.values(map);
 
-    // If user hasn't added any words to SRS yet, seed 10 core conversational words so they can start immediately
     if (list.length === 0) {
       const starter = BUILTIN_VOCAB_SETS[0].words.slice(0, 10);
       starter.forEach((w) => saveSrsWord(w, "hard"));
@@ -29,9 +106,27 @@ export default function DailyReviewPage() {
     }
 
     setAllSrs(list);
+    setReviewPool(buildMasterPool());
+  };
+
+  const startRandomSession = () => {
+    const fullPool = buildMasterPool();
     const now = Date.now();
-    const due = list.filter((item) => item.nextReview <= now + 60 * 1000);
-    setDueQueue(due.length > 0 ? due : list.slice(0, 10));
+    // Separate due SRS items and other varied items, shuffle both so every click yields a fresh set
+    const dueSrs = shuffleArray(fullPool.filter((item) => item.nextReview > 0 && item.nextReview <= now + 60 * 1000));
+    const freshOrOther = shuffleArray(fullPool.filter((item) => !dueSrs.some((d) => d.word === item.word)));
+
+    // Mix due items with fresh items so even repeated clicks give different phrases!
+    const combined = shuffleArray([...dueSrs.slice(0, Math.ceil(selectedCount / 2)), ...freshOrOther]).slice(
+      0,
+      selectedCount
+    );
+
+    setDueQueue(combined);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setIsReviewing(true);
+    if (combined[0]) speakEnglish(combined[0].word);
   };
 
   const currentItem = dueQueue[currentIndex];
@@ -62,21 +157,35 @@ export default function DailyReviewPage() {
             🧠 Ôn Tập Ngắt Quãng (Spaced Repetition SRS)
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Thuật toán 5 hộp Leitner giúp não bộ ghi nhớ từ vựng vĩnh viễn chỉ với 5 phút mỗi ngày.
+            Mỗi lượt ôn tập hệ thống tự động trộn ngẫu nhiên từ vựng & cụm câu mới từ kho {reviewPool.length} mục.
           </p>
         </div>
+
         {!isReviewing && (
-          <button
-            onClick={() => {
-              setCurrentIndex(0);
-              setIsFlipped(false);
-              setIsReviewing(true);
-              if (dueQueue[0]) speakEnglish(dueQueue[0].word);
-            }}
-            className="bg-primary text-primary-foreground px-6 py-3.5 rounded-2xl font-bold text-sm md:text-base shadow-lg hover:opacity-90 shrink-0"
-          >
-            🚀 Bắt đầu ôn tập ngay ({dueQueue.length} từ)
-          </button>
+          <div className="flex flex-wrap items-center gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 bg-card border border-border px-3 py-2 rounded-2xl">
+              <span className="text-xs font-bold text-muted-foreground mr-1">Số câu:</span>
+              {[5, 10, 15, 20, 30].map((num) => (
+                <button
+                  key={num}
+                  onClick={() => setSelectedCount(num)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-colors ${
+                    selectedCount === num
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={startRandomSession}
+              className="bg-primary text-primary-foreground px-6 py-3 rounded-2xl font-bold text-sm md:text-base shadow-lg hover:opacity-90"
+            >
+              🎲 Bắt đầu ôn ({selectedCount} câu ngẫu nhiên)
+            </button>
+          </div>
         )}
       </div>
 
@@ -104,19 +213,19 @@ export default function DailyReviewPage() {
 
           {completedCount > 0 && (
             <div className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-500 p-4 rounded-2xl font-bold text-sm flex items-center justify-between">
-              <span>🎉 Tuyệt vời! Bạn vừa ôn tập xong {completedCount} từ vựng trong phiên hôm nay.</span>
-              <Link href="/vocabulary" className="underline">
-                Học thêm từ mới →
-              </Link>
+              <span>🎉 Tuyệt vời! Bạn vừa hoàn thành {completedCount} từ/cụm từ trong phiên ôn tập.</span>
+              <button onClick={startRandomSession} className="underline font-extrabold">
+                Ôn thêm lượt mới ({selectedCount} câu khác) →
+              </button>
             </div>
           )}
 
           {/* WORD LIST IN SRS */}
           <div className="bg-card border border-border rounded-3xl p-5 md:p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-base md:text-lg">Danh sách từ trong bộ nhớ SRS ({allSrs.length} từ)</h2>
+              <h2 className="font-bold text-base md:text-lg">Từ & Cụm từ đã ghi nhớ trong SRS ({allSrs.length})</h2>
               <Link href="/vocabulary" className="text-xs font-bold text-primary hover:underline">
-                + Thêm từ bộ từ vựng
+                + Học thêm bộ từ mới
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -128,10 +237,10 @@ export default function DailyReviewPage() {
                 >
                   <div className="min-w-0 pr-2">
                     <div className="font-bold text-primary flex items-center gap-1.5">
-                      <span>{item.word}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{item.phonetic}</span>
-                      <span className="text-xs">🔊</span>
+                      <span className="truncate">{item.word}</span>
+                      <span className="text-xs shrink-0">🔊</span>
                     </div>
+                    <div className="text-xs text-muted-foreground font-mono">{item.phonetic}</div>
                     <div className="text-sm text-foreground truncate">{item.translation}</div>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-secondary shrink-0">
@@ -150,7 +259,7 @@ export default function DailyReviewPage() {
               ← Dừng phiên ôn
             </button>
             <span>
-              Tiến độ: {currentIndex + 1} / {dueQueue.length}
+              Câu {currentIndex + 1} / {dueQueue.length}
             </span>
           </div>
 
@@ -172,17 +281,19 @@ export default function DailyReviewPage() {
                 <span className="text-xs font-bold uppercase text-muted-foreground mb-2">
                   Hộp hiện tại: Cấp {currentItem.level}/5
                 </span>
-                <h2 className="text-4xl md:text-5xl font-extrabold text-primary mb-2">{currentItem.word}</h2>
+                <h2 className="text-3xl md:text-4xl font-extrabold text-primary mb-2 leading-snug">
+                  {currentItem.word}
+                </h2>
                 <p className="text-sm font-mono text-muted-foreground">{currentItem.phonetic}</p>
 
                 {isFlipped ? (
-                  <div className="mt-6 pt-6 border-t border-border w-full space-y-2 animate-in fade-in">
+                  <div className="mt-6 pt-6 border-t border-border w-full space-y-2">
                     <div className="text-2xl font-extrabold text-emerald-500">{currentItem.translation}</div>
                     <p className="text-sm text-muted-foreground">{currentItem.definition}</p>
                   </div>
                 ) : (
                   <p className="mt-8 text-xs text-muted-foreground bg-secondary px-4 py-1.5 rounded-full">
-                    👆 Chạm để xem đáp án
+                    👆 Chạm vào thẻ để xem đáp án
                   </p>
                 )}
               </div>
