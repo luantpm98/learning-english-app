@@ -218,3 +218,188 @@ export const ESSENTIAL_PHRASES: EssentialPhraseItem[] = [
   { id: 9011, category: "Du lịch & Đời sống", text: "Could we have the bill, please?", translation: "Cho tụi mình xin hóa đơn thanh toán nhé!", usage: "Gọi tính tiền tại nhà hàng" },
   { id: 9012, category: "Du lịch & Đời sống", text: "Thank you in advance for your help!", translation: "Cảm ơn sự giúp đỡ của bạn trước nhé!", usage: "Kết thúc lời nhờ vả lịch sự" },
 ];
+
+export type QaReflexItem = {
+  id: number;
+  topic: string;
+  questionEn: string;
+  questionVi: string;
+  hintVi: string;
+  sampleAnswerEn: string;
+  sampleAnswerVi: string;
+  keywords: string[];
+};
+
+export const QA_REFLEX_ITEMS: QaReflexItem[] = [
+  {
+    id: 1,
+    topic: "Small Talk & Làm quen",
+    questionEn: "What do you usually do in your free time?",
+    questionVi: "Bạn thường làm gì vào thời gian rảnh?",
+    hintVi: "Nói 1-2 sở thích: nghe nhạc, xem phim, đi cà phê hoặc tập thể dục",
+    sampleAnswerEn: "In my free time, I usually listen to music, watch English videos, or hang out with friends.",
+    sampleAnswerVi: "Vào thời gian rảnh, tôi thường nghe nhạc, xem video tiếng Anh hoặc đi chơi với bạn bè.",
+    keywords: ["free", "time", "usually", "like", "love", "music", "movies", "friends", "sport", "read", "coffee"],
+  },
+  {
+    id: 2,
+    topic: "Small Talk & Làm quen",
+    questionEn: "How has your day been so far?",
+    questionVi: "Hôm nay của bạn thế nào rồi?",
+    hintVi: "Trả lời tích cực: Khá tốt / Hơi bận nhưng vui",
+    sampleAnswerEn: "It's been pretty good so far! A bit busy at work, but everything is going smoothly.",
+    sampleAnswerVi: "Hôm nay khá ổn! Công việc hơi bận một chút nhưng mọi thứ đang diễn ra suôn sẻ.",
+    keywords: ["good", "great", "busy", "fine", "okay", "nice", "pretty", "well", "tired"],
+  },
+  {
+    id: 3,
+    topic: "Công sở & Phỏng vấn",
+    questionEn: "Could you tell me a little bit about your current job?",
+    questionVi: "Bạn có thể chia sẻ một chút về công việc hiện tại của bạn không?",
+    hintVi: "Nêu vị trí/ngành nghề + số năm kinh nghiệm",
+    sampleAnswerEn: "Sure! I currently work in tech and I have been doing this for over three years.",
+    sampleAnswerVi: "Chắc chắn rồi! Hiện tại tôi đang làm trong ngành công nghệ và đã làm công việc này hơn 3 năm.",
+    keywords: ["work", "job", "company", "years", "experience", "developer", "manager", "team", "help", "project"],
+  },
+  {
+    id: 4,
+    topic: "Công sở & Phỏng vấn",
+    questionEn: "What time are you available for a quick meeting tomorrow?",
+    questionVi: "Ngày mai mấy giờ bạn rảnh để họp nhanh một chút?",
+    hintVi: "Đề xuất 1 khung giờ cụ thể: 10 giờ sáng hoặc 2 giờ chiều",
+    sampleAnswerEn: "I am available around ten in the morning, or anytime after two in the afternoon.",
+    sampleAnswerVi: "Tôi rảnh vào khoảng 10 giờ sáng, hoặc bất kỳ lúc nào sau 2 giờ chiều.",
+    keywords: ["available", "morning", "afternoon", "tomorrow", "time", "free", "good", "works", "at"],
+  },
+  {
+    id: 5,
+    topic: "Nhà hàng & Mua sắm",
+    questionEn: "Would you like anything else, or just the coffee?",
+    questionVi: "Bạn có muốn gọi thêm món gì nữa không, hay chỉ cà phê thôi?",
+    hintVi: "Nói 'Chỉ vậy thôi, cảm ơn' hoặc gọi thêm 1 món bánh",
+    sampleAnswerEn: "Just the coffee for today, thank you! How much is the total?",
+    sampleAnswerVi: "Hôm nay chỉ cà phê thôi, cảm ơn bạn! Tổng cộng hết bao nhiêu vậy?",
+    keywords: ["just", "that's", "all", "thank", "thanks", "no", "also", "please", "how", "much"],
+  },
+  {
+    id: 6,
+    topic: "Du lịch & Sân bay",
+    questionEn: "How long are you planning to stay here?",
+    questionVi: "Bạn dự định ở lại đây bao lâu?",
+    hintVi: "Nêu số ngày/tuần + mục đích du lịch hay công tác",
+    sampleAnswerEn: "I'm planning to stay for about five days on vacation with my family.",
+    sampleAnswerVi: "Tôi dự định ở lại khoảng 5 ngày để đi du lịch cùng gia đình.",
+    keywords: ["stay", "days", "week", "weeks", "vacation", "business", "trip", "about", "for"],
+  },
+  {
+    id: 7,
+    topic: "Ý kiến & Thảo luận",
+    questionEn: "What do you think about working from home?",
+    questionVi: "Bạn nghĩ sao về việc làm việc tại nhà?",
+    hintVi: "Nêu quan điểm: Rất tiện lợi, tiết kiệm thời gian đi lại",
+    sampleAnswerEn: "I think working from home is very convenient because it saves a lot of commuting time.",
+    sampleAnswerVi: "Tôi nghĩ làm việc tại nhà rất tiện lợi vì tiết kiệm được nhiều thời gian di chuyển.",
+    keywords: ["think", "convenient", "flexible", "time", "good", "like", "home", "productive", "because"],
+  },
+  {
+    id: 8,
+    topic: "Xử lý tình huống",
+    questionEn: "Sorry, I didn't catch your name. Could you repeat that?",
+    questionVi: "Xin lỗi tôi nghe chưa rõ tên bạn. Bạn nhắc lại giúp tôi được không?",
+    hintVi: "Nhắc lại tên bạn + đánh vần hoặc nói 'Không sao đâu'",
+    sampleAnswerEn: "No problem at all! My name is Luan. Nice to meet you!",
+    sampleAnswerVi: "Không sao đâu ạ! Tên tôi là Luân. Rất vui được gặp bạn!",
+    keywords: ["name", "is", "i'm", "no", "problem", "sure", "nice", "meet", "you"],
+  },
+];
+
+export type SentencePatternItem = {
+  id: number;
+  pattern: string;
+  meaningVi: string;
+  exampleEn: string;
+  exampleVi: string;
+  tip: string;
+};
+
+export const GOLDEN_PATTERNS: SentencePatternItem[] = [
+  {
+    id: 1,
+    pattern: "Could you please + [Động từ] ...?",
+    meaningVi: "Bạn vui lòng giúp tôi ... được không?",
+    exampleEn: "Could you please speak a little slower?",
+    exampleVi: "Bạn vui lòng nói chậm hơn một chút được không?",
+    tip: "Mẫu câu nhờ vả lịch sự dùng được trong mọi tình huống giao tiếp & công việc.",
+  },
+  {
+    id: 2,
+    pattern: "I'm looking forward to + [V-ing / Danh từ]",
+    meaningVi: "Tôi đang rất mong đợi điều gì đó...",
+    exampleEn: "I'm looking forward to working with your team.",
+    exampleVi: "Tôi rất mong được làm việc cùng đội ngũ của bạn.",
+    tip: "Cực kỳ ghi điểm khi kết thúc email, phỏng vấn hoặc hẹn gặp.",
+  },
+  {
+    id: 3,
+    pattern: "How about we + [Động từ nguyên mẫu] ...?",
+    meaningVi: "Hay là chúng ta cùng ... nhé?",
+    exampleEn: "How about we grab a coffee after work?",
+    exampleVi: "Hay là sau giờ làm tụi mình đi uống cà phê nhé?",
+    tip: "Cách rủ rê, đề xuất tự nhiên nhất của người bản xứ.",
+  },
+  {
+    id: 4,
+    pattern: "The reason why I ... is that ...",
+    meaningVi: "Lý do tại sao tôi ... là vì ...",
+    exampleEn: "The reason why I learn English is to communicate globally.",
+    exampleVi: "Lý do tôi học tiếng Anh là để giao tiếp toàn cầu.",
+    tip: "Giúp bạn trả lời phỏng vấn hoặc giải thích lý do mạch lạc, thuyết phục.",
+  },
+  {
+    id: 5,
+    pattern: "Would you mind if I + [Động từ] ...?",
+    meaningVi: "Bạn có phiền không nếu tôi ...?",
+    exampleEn: "Would you mind if I opened the window?",
+    exampleVi: "Bạn có phiền không nếu tôi mở cửa sổ?",
+    tip: "Xin phép siêu lịch sự nơi công sở hoặc khi ở nước ngoài.",
+  },
+  {
+    id: 6,
+    pattern: "I'm thinking about + [V-ing] ...",
+    meaningVi: "Tôi đang cân nhắc / tính chuyện sẽ ...",
+    exampleEn: "I'm thinking about traveling to Da Nang next month.",
+    exampleVi: "Tôi đang tính tháng sau sẽ đi du lịch Đà Nẵng.",
+    tip: "Nói về dự định chưa chốt một cách rất tự nhiên.",
+  },
+];
+
+export const CURATED_STARTER_VIDEOS = [
+  {
+    youtubeId: "juKd26qkNAw",
+    title: "English Conversation Practice: Daily Routines & Small Talk",
+    author: "English Speaking Practice",
+    duration: "10:15",
+    thumbnail: "https://img.youtube.com/vi/juKd26qkNAw/mqdefault.jpg",
+  },
+  {
+    youtubeId: "Unzc731iCUY",
+    title: "How To Speak So That People Want To Listen | Julian Treasure",
+    author: "TED",
+    duration: "09:58",
+    thumbnail: "https://img.youtube.com/vi/Unzc731iCUY/mqdefault.jpg",
+  },
+  {
+    youtubeId: "eIho2S0ZahI",
+    title: "How to Speak English Fluently and Confidently in 30 Days",
+    author: "Speak English With Vanessa",
+    duration: "14:20",
+    thumbnail: "https://img.youtube.com/vi/eIho2S0ZahI/mqdefault.jpg",
+  },
+  {
+    youtubeId: "5MgBikgcWnY",
+    title: "The first 20 hours -- how to learn anything | Josh Kaufman",
+    author: "TEDx Talks",
+    duration: "19:27",
+    thumbnail: "https://img.youtube.com/vi/5MgBikgcWnY/mqdefault.jpg",
+  },
+];

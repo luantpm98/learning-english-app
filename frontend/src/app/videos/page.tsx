@@ -1,5 +1,6 @@
 "use client";
 import { getUserKey, API_URL } from "../../utils/storage";
+import { CURATED_STARTER_VIDEOS } from "../../utils/curatedData";
 
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -25,12 +26,25 @@ export default function VideoLibraryPage() {
   const [loadingPlaylist, setLoadingPlaylist] = useState(false);
   const [importingAll, setImportingAll] = useState(false);
 
-  // Recommendations based on history
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  // Recommendations based on history (instant starter videos so page never blocks on Render wake-up)
+  const [recommendations, setRecommendations] = useState<any[]>(CURATED_STARTER_VIDEOS);
 
   const router = useRouter();
 
   useEffect(() => {
+    // Load cached recommendations & saved videos immediately (0ms)
+    try {
+      const cachedRecs = localStorage.getItem(getUserKey("cached_recs"));
+      if (cachedRecs) {
+        const parsed = JSON.parse(cachedRecs);
+        if (Array.isArray(parsed) && parsed.length > 0) setRecommendations(parsed);
+      }
+      const cachedSaved = localStorage.getItem(getUserKey("cached_saved_videos"));
+      if (cachedSaved) {
+        const parsedSaved = JSON.parse(cachedSaved);
+        if (Array.isArray(parsedSaved)) setVideos(parsedSaved);
+      }
+    } catch {}
     fetchSaved();
     loadRecommendations();
   }, []);
@@ -40,15 +54,21 @@ export default function VideoLibraryPage() {
     try {
       if (history.length > 0) {
         const shuffled = [...history].sort(() => 0.5 - Math.random()).slice(0, 3);
-        const promises = shuffled.map(q => axios.get(`${API_URL}/videos/search?q=${encodeURIComponent(q)}`));
+        const promises = shuffled.map(q => axios.get(`${API_URL}/videos/search?q=${encodeURIComponent(q)}`, { timeout: 60000 }));
         const results = await Promise.all(promises);
         let combined: any[] = [];
         results.forEach(res => combined.push(...res.data));
         combined = combined.sort(() => 0.5 - Math.random()).slice(0, 12);
-        setRecommendations(combined);
+        if (combined.length > 0) {
+          setRecommendations(combined);
+          localStorage.setItem(getUserKey("cached_recs"), JSON.stringify(combined));
+        }
       } else {
-        const res = await axios.get(`${API_URL}/videos/search?q=english%20listening`);
-        setRecommendations(res.data);
+        const res = await axios.get(`${API_URL}/videos/search?q=english%20listening`, { timeout: 60000 });
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setRecommendations(res.data);
+          localStorage.setItem(getUserKey("cached_recs"), JSON.stringify(res.data));
+        }
       }
     } catch(e) {
       console.error("Failed to load recommendations", e);
@@ -73,7 +93,9 @@ export default function VideoLibraryPage() {
          savedIds = vRes.data.map((v: any) => v.id);
          localStorage.setItem(getUserKey("savedVideoIds"), JSON.stringify(savedIds));
       }
-      setVideos(vRes.data.filter((v: any) => savedIds.includes(v.id)));
+      const filtered = vRes.data.filter((v: any) => savedIds.includes(v.id));
+      setVideos(filtered);
+      localStorage.setItem(getUserKey("cached_saved_videos"), JSON.stringify(filtered));
       setMyChannels(cRes.data);
     } catch (e) {
       console.error(e);
