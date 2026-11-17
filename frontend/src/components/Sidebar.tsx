@@ -51,6 +51,7 @@ export default function Sidebar() {
 
   const links = [
     { href: "/", label: "Tổng quan", shortLabel: "Home", icon: "📊" },
+    { href: "/ai-teacher", label: "Gia sư Gemini AI", shortLabel: "Gia sư AI", icon: "🤖" },
     { href: "/videos", label: "Thư viện Video", shortLabel: "Video", icon: "🎬" },
     { href: "/vocabulary", label: "Từ vựng 4 Chế độ", shortLabel: "Từ vựng", icon: "🗂️" },
     { href: "/phrases", label: "Giao tiếp & Roleplay", shortLabel: "Giao tiếp", icon: "🎭" },

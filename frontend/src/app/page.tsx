@@ -119,7 +119,15 @@ export default function Dashboard() {
       </div>
 
       {/* QUICK ACTION PILLS FOR MOBILE & DESKTOP */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <Link
+          href="/ai-teacher"
+          className="bg-gradient-to-br from-indigo-500/15 to-emerald-500/15 border-2 border-primary/50 hover:border-primary p-4 rounded-2xl flex flex-col gap-1 shadow-sm transition-all col-span-2 sm:col-span-1"
+        >
+          <span className="text-2xl">🤖</span>
+          <span className="font-bold text-sm text-primary">Gia sư Gemini AI</span>
+          <span className="text-xs text-muted-foreground">Nói 1-1 & Sửa lỗi</span>
+        </Link>
         <Link
           href="/vocabulary/101/learn"
           className="bg-card border border-border hover:border-primary p-4 rounded-2xl flex flex-col gap-1 shadow-sm transition-all"
