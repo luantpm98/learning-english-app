@@ -312,6 +312,7 @@ export default function ReflexTrainingPage() {
         action: "generate_qa",
         topic: qaTopic,
         apiKey,
+        preferredModel: localStorage.getItem("gemini_preferred_model") || undefined,
       });
       if (Array.isArray(res.data?.items) && res.data.items.length > 0) {
         const newItems: QaReflexItem[] = res.data.items.map((it: any, idx: number) => ({
@@ -356,6 +357,7 @@ export default function ReflexTrainingPage() {
         action: "generate_patterns",
         topic: patternTopic,
         apiKey,
+        preferredModel: localStorage.getItem("gemini_preferred_model") || undefined,
       });
       if (Array.isArray(res.data?.items) && res.data.items.length > 0) {
         const newItems: SentencePatternItem[] = res.data.items.map((it: any, idx: number) => ({

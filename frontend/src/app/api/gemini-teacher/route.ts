@@ -75,6 +75,8 @@ async function discoverTextModels(apiKey: string): Promise<string[]> {
         return (
           methods.includes("generateContent") &&
           name.includes("gemini") &&
+          !name.includes("latest") &&
+          !name.includes("1.0") &&
           !name.includes("tts") &&
           !name.includes("image") &&
           !name.includes("embedding") &&
@@ -254,10 +256,14 @@ Return strictly a JSON array (no markdown) of 5 objects with these exact keys:
   }
 ]`;
 
-      const res = await callGemini(activeKey, {
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.9 },
-      });
+      const res = await callGemini(
+        activeKey,
+        {
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.9 },
+        },
+        preferredModel
+      );
 
       if (!res.ok || !res.text) {
         return NextResponse.json({ error: res.error || "Không tạo được câu mới" }, { status: 502 });

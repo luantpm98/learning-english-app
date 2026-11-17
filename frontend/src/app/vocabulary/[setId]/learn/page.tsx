@@ -33,6 +33,7 @@ export default function LearnSetPage() {
   const [sessionScore, setSessionScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [wordImageUrl, setWordImageUrl] = useState<string>("");
+  const [imageError, setImageError] = useState(false);
 
   // Quiz state
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -108,6 +109,8 @@ export default function LearnSetPage() {
     speakEnglish(currentWord.word);
 
     let active = true;
+    setImageError(false);
+    setWordImageUrl("");
     fetchWordImage(currentWord.word).then((url) => {
       if (active) setWordImageUrl(url);
     });
@@ -385,18 +388,21 @@ export default function LearnSetPage() {
 
             {!isFlipped ? (
               <div className="my-2 flex flex-col items-center">
-                {wordImageUrl && (
-                  <div className="w-48 h-28 md:w-56 md:h-32 rounded-2xl overflow-hidden mb-3 border border-border bg-secondary/40 shadow-sm">
+                <div className="w-52 h-32 md:w-60 md:h-36 rounded-2xl overflow-hidden mb-3 border border-border bg-gradient-to-br from-primary/15 via-secondary to-accent/15 shadow-sm flex items-center justify-center relative">
+                  {wordImageUrl && !imageError ? (
                     <img
                       src={wordImageUrl}
                       alt={currentWord.word}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                      }}
+                      onError={() => setImageError(true)}
                     />
-                  </div>
-                )}
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-3 text-center">
+                      <span className="text-3xl mb-1">🖼️</span>
+                      <span className="text-xs font-bold text-primary/80 uppercase tracking-wider">{currentWord.word}</span>
+                    </div>
+                  )}
+                </div>
                 <h2 className="text-4xl md:text-5xl font-extrabold text-primary mb-2">{currentWord.word}</h2>
                 {currentWord.phonetic && (
                   <p className="text-base md:text-lg text-muted-foreground font-mono">{currentWord.phonetic}</p>
@@ -478,15 +484,13 @@ export default function LearnSetPage() {
             <span className="text-xs font-bold uppercase text-muted-foreground">
               Câu {currentIndex + 1} / {sessionWords.length} · Chọn nghĩa đúng
             </span>
-            {wordImageUrl && (
-              <div className="w-44 h-28 rounded-2xl overflow-hidden mt-3 border border-border bg-secondary/40">
+            {wordImageUrl && !imageError && (
+              <div className="w-48 h-28 rounded-2xl overflow-hidden mt-3 border border-border bg-secondary/40">
                 <img
                   src={wordImageUrl}
                   alt={currentWord.word}
                   className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
+                  onError={() => setImageError(true)}
                 />
               </div>
             )}

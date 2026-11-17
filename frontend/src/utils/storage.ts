@@ -177,31 +177,46 @@ export const lookupWordDictionary = async (
   }
 };
 
-// Fetch real illustrative image for a vocabulary word (Wikipedia thumbnail -> Pollinations illustration)
+// Fetch real illustrative image for a vocabulary word (Wikipedia -> Wikimedia Commons)
 export const fetchWordImage = async (word: string): Promise<string> => {
   const clean = word.trim().toLowerCase().split(/\s+/)[0];
-  const fallbackUrl = `https://image.pollinations.ai/prompt/clean%20colorful%20flat%20illustration%20representing%20the%20english%20word%20${encodeURIComponent(
-    word
-  )}?width=480&height=270&nologo=true`;
+  if (typeof window === "undefined") return "";
 
-  if (typeof window !== "undefined") {
-    const cacheKey = `word_img_${word.toLowerCase()}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) return cached;
+  const cacheKey = `word_img_v2_${word.toLowerCase()}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached && !cached.includes("pollinations")) return cached;
 
-    try {
-      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const thumb = data?.thumbnail?.source;
-        if (thumb && !thumb.endsWith(".svg")) {
-          localStorage.setItem(cacheKey, thumb);
-          return thumb;
+  // 1. Try Wikipedia REST summary thumbnail
+  try {
+    const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(clean)}`);
+    if (res.ok) {
+      const data = await res.json();
+      const thumb = data?.thumbnail?.source;
+      if (thumb && !thumb.endsWith(".svg")) {
+        localStorage.setItem(cacheKey, thumb);
+        return thumb;
+      }
+    }
+  } catch {}
+
+  // 2. Try Wikimedia Commons search for a real JPEG/PNG photo
+  try {
+    const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(
+      word
+    )}&gsrlimit=4&prop=imageinfo&iiprop=url|mime&iiurlwidth=420&format=json&origin=*`;
+    const res = await fetch(wikiUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const pages = Object.values(data?.query?.pages || {}) as any[];
+      for (const p of pages) {
+        const info = p?.imageinfo?.[0];
+        if (info?.thumburl && (info.mime === "image/jpeg" || info.mime === "image/png")) {
+          localStorage.setItem(cacheKey, info.thumburl);
+          return info.thumburl;
         }
       }
-    } catch {}
-    localStorage.setItem(cacheKey, fallbackUrl);
-  }
+    }
+  } catch {}
 
-  return fallbackUrl;
+  return "";
 };
