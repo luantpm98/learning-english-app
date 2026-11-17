@@ -51,68 +51,66 @@ const FALLBACK_REPLIES: Record<string, { en: string; vi: string; tip: string }[]
   ],
 };
 
-async function callGemini(apiKey: string, payload: any) {
-  // Prefer modern fast models, then discover available models if needed
-  let candidateModels = [
+async function discoverTextModels(apiKey: string): Promise<string[]> {
+  const preferred = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.5-flash-lite",
     "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
+    "gemini-1.5-pro",
   ];
 
-  // Try calling candidate models
-  let lastError = "";
-  for (const modelName of candidateModels) {
-    try {
-      const resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(
-          apiKey
-        )}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (resp.ok) {
-        const data = await resp.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) return { ok: true, model: modelName, text };
-      } else {
-        const errBody = await resp.text();
-        lastError = `${resp.status}: ${errBody}`;
-        // If API key itself is invalid (400 API_KEY_INVALID / 403), stop immediately
-        if (resp.status === 400 && errBody.includes("API_KEY_INVALID")) {
-          return { ok: false, error: "API Key không hợp lệ. Vui lòng kiểm tra lại mã key từ Google AI Studio." };
-        }
-        if (resp.status === 403) {
-          return { ok: false, error: "API Key bị từ chối quyền truy cập (403). Vui lòng kiểm tra key trên Google AI Studio." };
-        }
-      }
-    } catch (e: any) {
-      lastError = e.message || "Network error";
-    }
-  }
-
-  // Fallback: dynamically list models enabled for this key and pick the first generateContent model
   try {
     const listResp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
     );
-    if (listResp.ok) {
-      const listData = await listResp.json();
-      const validModel = (listData.models || []).find(
-        (m: any) =>
-          Array.isArray(m.supportedGenerationMethods) &&
-          m.supportedGenerationMethods.includes("generateContent") &&
-          m.name?.includes("gemini")
-      );
-      if (validModel) {
-        const cleanName = validModel.name.replace(/^models\//, "");
+    if (!listResp.ok) return preferred;
+    const listData = await listResp.json();
+    const available: string[] = (listData.models || [])
+      .filter((m: any) => {
+        const name = String(m.name || "").toLowerCase();
+        const methods: string[] = m.supportedGenerationMethods || [];
+        return (
+          methods.includes("generateContent") &&
+          name.includes("gemini") &&
+          !name.includes("tts") &&
+          !name.includes("image") &&
+          !name.includes("embedding") &&
+          !name.includes("audio") &&
+          !name.includes("vision") &&
+          !name.includes("robotics") &&
+          !name.includes("computer")
+        );
+      })
+      .map((m: any) => String(m.name).replace(/^models\//, ""));
+
+    if (available.length === 0) return preferred;
+
+    // Sort so preferred fast flash models come first
+    available.sort((a, b) => {
+      const idxA = preferred.findIndex((p) => a === p || a.startsWith(p));
+      const idxB = preferred.findIndex((p) => b === p || b.startsWith(p));
+      const rankA = idxA === -1 ? 999 : idxA;
+      const rankB = idxB === -1 ? 999 : idxB;
+      return rankA - rankB;
+    });
+
+    return available.slice(0, 6);
+  } catch {
+    return preferred;
+  }
+}
+
+async function callGemini(apiKey: string, payload: any) {
+  const candidateModels = await discoverTextModels(apiKey);
+  let lastError = "";
+
+  for (const modelName of candidateModels) {
+    for (const apiVer of ["v1beta", "v1"]) {
+      try {
         const resp = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${cleanName}:generateContent?key=${encodeURIComponent(
+          `https://generativelanguage.googleapis.com/${apiVer}/models/${modelName}:generateContent?key=${encodeURIComponent(
             apiKey
           )}`,
           {
@@ -121,16 +119,28 @@ async function callGemini(apiKey: string, payload: any) {
             body: JSON.stringify(payload),
           }
         );
+
         if (resp.ok) {
           const data = await resp.json();
           const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) return { ok: true, model: cleanName, text };
+          if (text) return { ok: true, model: modelName, text };
+        } else {
+          const errBody = await resp.text();
+          lastError = `${resp.status} (${modelName}): ${errBody}`;
+          if (resp.status === 400 && errBody.includes("API_KEY_INVALID")) {
+            return { ok: false, error: "API Key không hợp lệ. Vui lòng kiểm tra lại mã key từ Google AI Studio." };
+          }
+          if (resp.status === 403) {
+            return { ok: false, error: "API Key bị từ chối quyền truy cập (403). Vui lòng kiểm tra key trên Google AI Studio." };
+          }
         }
+      } catch (e: any) {
+        lastError = e.message || "Network error";
       }
     }
-  } catch {}
+  }
 
-  return { ok: false, error: lastError || "Không thể kết nối Gemini API" };
+  return { ok: false, error: lastError || "Không tìm thấy model Gemini khả dụng cho API Key này." };
 }
 
 function safeParseJson(rawText: string) {
