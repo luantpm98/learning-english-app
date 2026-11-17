@@ -299,16 +299,16 @@ Return strictly a JSON array (no markdown) of 5 objects with these exact keys:
       });
     }
 
-    const instruction = `You are a friendly, expert English Speaking Coach for a Vietnamese learner practicing the theme "${theme}" and scenario "${scenario}".
-Evaluate the learner's English sentence and reply STRICTLY as valid JSON (no markdown fences) with these exact keys:
+    const instruction = `You are an expert, attentive 1-on-1 English Speaking Tutor coaching a Vietnamese learner in theme "${theme}" and scenario "${scenario}".
+You MUST evaluate the learner's latest English message thoroughly and reply STRICTLY as a valid JSON object with ALL 7 required keys below (do NOT omit any key):
 {
-  "userRecognized": "the learner's sentence",
-  "score": <integer 0-100>,
-  "grammarFeedback": "Short feedback in Vietnamese explaining grammar/wording mistakes or praising them",
-  "betterExpression": "A more natural, native-like English version of what they said",
-  "replyEn": "Your natural conversational reply + 1 follow-up question in English",
-  "replyVi": "Vietnamese translation of replyEn",
-  "nextPracticeSentence": "One short useful English phrase they can try next"
+  "userRecognized": "the exact sentence the learner said",
+  "score": <integer 0-100 evaluating grammar, vocabulary, and naturalness>,
+  "grammarFeedback": "Clear feedback in Vietnamese: point out specific grammar/word choice mistakes and explain how to fix them, or praise what they did well.",
+  "betterExpression": "A recommended, more natural native-speaker way to express what the learner meant in English (always provide an improved or polished version!).",
+  "replyEn": "Your warm, human-like conversational reply + 1 follow-up question in English to keep the dialogue flowing.",
+  "replyVi": "Accurate Vietnamese translation of replyEn.",
+  "nextPracticeSentence": "One recommended English sentence/pattern for the learner to try next in this scenario (with brief Vietnamese meaning in parentheses)."
 }`;
 
     const contents = [
@@ -318,15 +318,19 @@ Evaluate the learner's English sentence and reply STRICTLY as valid JSON (no mar
       },
       {
         role: "model",
-        parts: [{ text: '{"replyEn":"Understood! Ready to coach."}' }],
+        parts: [
+          {
+            text: '{"userRecognized":"Ready","score":100,"grammarFeedback":"Sẵn sàng hỗ trợ bạn!","betterExpression":"I am ready to practice.","replyEn":"Great, let us begin!","replyVi":"Tuyệt vời, chúng ta bắt đầu nhé!","nextPracticeSentence":"Nice to meet you! (Rất vui được gặp bạn!)"}',
+          },
+        ],
       },
-      ...history.slice(-6).map((h: any) => ({
+      ...history.slice(-8).map((h: any) => ({
         role: h.role === "assistant" ? "model" : "user",
         parts: [{ text: h.text }],
       })),
       {
         role: "user",
-        parts: [{ text: `Student said: "${cleanMsg}"` }],
+        parts: [{ text: `Student said: "${cleanMsg}". Remember to return ONLY valid JSON with all 7 keys including betterExpression and nextPracticeSentence.` }],
       },
     ];
 
@@ -334,7 +338,11 @@ Evaluate the learner's English sentence and reply STRICTLY as valid JSON (no mar
       activeKey,
       {
         contents,
-        generationConfig: { temperature: 0.6, maxOutputTokens: 320 },
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 900,
+          responseMimeType: "application/json",
+        },
       },
       preferredModel
     );
