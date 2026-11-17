@@ -1,5 +1,5 @@
 "use client";
-import { speakEnglish } from "../../utils/storage";
+import { API_URL, getUserKey, speakEnglish } from "../../utils/storage";
 
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
@@ -69,10 +69,12 @@ export default function GeminiTeacherPage() {
 
   // API key settings
   const [apiKey, setApiKey] = useState("");
+  const [preferredModel, setPreferredModel] = useState("");
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [tempKey, setTempKey] = useState("");
   const [testingKey, setTestingKey] = useState(false);
   const [keyStatus, setKeyStatus] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [savedSentences, setSavedSentences] = useState<Record<string, boolean>>({});
 
   const recognitionRef = useRef<any>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -82,9 +84,51 @@ export default function GeminiTeacherPage() {
 
   useEffect(() => {
     const savedKey = localStorage.getItem("gemini_api_key") || "";
+    const savedModel = localStorage.getItem("gemini_preferred_model") || "";
     setApiKey(savedKey);
     setTempKey(savedKey);
+    setPreferredModel(savedModel);
   }, []);
+
+  const saveToReflex = async (text: string, translation?: string) => {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    setSavedSentences((prev) => ({ ...prev, [cleanText]: true }));
+
+    const localKey = getUserKey("saved_reflex_phrases");
+    try {
+      const existing = JSON.parse(localStorage.getItem(localKey) || "[]");
+      if (!existing.some((p: any) => p.text?.toLowerCase() === cleanText.toLowerCase())) {
+        let finalTrans = translation || "";
+        if (!finalTrans) {
+          try {
+            const trRes = await axios.post(`${API_URL}/videos/translate`, { text: cleanText });
+            finalTrans = trRes.data?.text || "";
+          } catch {}
+        }
+        const newItem = {
+          id: Date.now(),
+          text: cleanText,
+          translation: finalTrans || "Mẫu câu lưu từ Gia sư AI",
+          category: "Gia sư AI",
+        };
+        existing.unshift(newItem);
+        localStorage.setItem(localKey, JSON.stringify(existing));
+
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          axios
+            .post(`${API_URL}/phrases`, {
+              userId: user.id,
+              text: cleanText,
+              translation: newItem.translation,
+            })
+            .catch(() => {});
+        }
+      }
+    } catch {}
+  };
 
   // Reset conversation when theme/scenario changes
   useEffect(() => {
@@ -152,9 +196,14 @@ export default function GeminiTeacherPage() {
         theme: themeKey,
         scenario: currentScenario.id,
         apiKey: apiKey || undefined,
+        preferredModel: preferredModel || undefined,
       });
 
       const d = res.data;
+      if (d.model && d.model !== preferredModel) {
+        setPreferredModel(d.model);
+        localStorage.setItem("gemini_preferred_model", d.model);
+      }
       const aiTurn: ChatTurn = {
         id: Date.now() + "-a",
         role: "assistant",
@@ -232,6 +281,10 @@ export default function GeminiTeacherPage() {
       if (res.data?.ok) {
         setApiKey(cleaned);
         localStorage.setItem("gemini_api_key", cleaned);
+        if (res.data.model) {
+          setPreferredModel(res.data.model);
+          localStorage.setItem("gemini_preferred_model", res.data.model);
+        }
         setKeyStatus({ type: "ok", text: res.data.message || "Kết nối Gemini thành công!" });
         setTimeout(() => setShowKeyModal(false), 900);
       } else {
@@ -348,37 +401,79 @@ export default function GeminiTeacherPage() {
                     {m.grammarFeedback && <p className="text-foreground leading-relaxed">{m.grammarFeedback}</p>}
                     {m.betterExpression && (
                       <div className="bg-background/70 p-2.5 rounded-xl border border-border flex items-center justify-between gap-2">
-                        <div>
+                        <div className="min-w-0">
                           <span className="text-[11px] font-bold text-primary block">✨ Cách nói tự nhiên hơn:</span>
                           <span className="font-bold text-foreground">{m.betterExpression}</span>
                         </div>
-                        <button
-                          onClick={() => speakEnglish(m.betterExpression!)}
-                          className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0"
-                        >
-                          🔊
-                        </button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => speakEnglish(m.betterExpression!)}
+                            className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center"
+                            title="Nghe phát âm"
+                          >
+                            🔊
+                          </button>
+                          <button
+                            onClick={() => saveToReflex(m.betterExpression!)}
+                            disabled={savedSentences[m.betterExpression!]}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors ${
+                              savedSentences[m.betterExpression!]
+                                ? "bg-emerald-500/20 text-emerald-500"
+                                : "bg-secondary hover:bg-primary hover:text-primary-foreground"
+                            }`}
+                            title="Lưu câu này để luyện Phản xạ sau này"
+                          >
+                            {savedSentences[m.betterExpression!] ? "✓ Đã lưu" : "💾 Lưu phản xạ"}
+                          </button>
+                        </div>
                       </div>
                     )}
                     {m.nextPracticeSentence && (
-                      <p className="text-xs text-amber-500">
-                        💡 <b>Gợi ý câu tiếp theo:</b> {m.nextPracticeSentence}
-                      </p>
+                      <div className="text-xs text-amber-500 flex items-center justify-between gap-2 bg-amber-500/10 p-2 rounded-xl">
+                        <span>
+                          💡 <b>Gợi ý câu tiếp theo:</b> {m.nextPracticeSentence}
+                        </span>
+                        <button
+                          onClick={() => saveToReflex(m.nextPracticeSentence!)}
+                          disabled={savedSentences[m.nextPracticeSentence!]}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold shrink-0 ${
+                            savedSentences[m.nextPracticeSentence!]
+                              ? "bg-emerald-500/20 text-emerald-500"
+                              : "bg-card text-foreground border border-border"
+                          }`}
+                        >
+                          {savedSentences[m.nextPracticeSentence!] ? "✓ Đã lưu" : "💾 Lưu"}
+                        </button>
+                      </div>
                     )}
                   </div>
                 )}
 
                 {/* AI Conversational Reply */}
-                <div className="bg-card border border-border px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm space-y-1">
+                <div className="bg-card border border-border px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm space-y-1.5">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-bold text-sm md:text-base text-foreground leading-relaxed">{m.text}</p>
-                    <button
-                      onClick={() => speakEnglish(m.text)}
-                      className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center shrink-0 hover:bg-primary hover:text-primary-foreground transition-colors"
-                      title="Nghe lại"
-                    >
-                      🔊
-                    </button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => speakEnglish(m.text)}
+                        className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors"
+                        title="Nghe lại"
+                      >
+                        🔊
+                      </button>
+                      <button
+                        onClick={() => saveToReflex(m.text, m.vi)}
+                        disabled={savedSentences[m.text]}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors ${
+                          savedSentences[m.text]
+                            ? "bg-emerald-500/20 text-emerald-500"
+                            : "bg-secondary hover:bg-primary hover:text-primary-foreground"
+                        }`}
+                        title="Lưu câu này vào Phản xạ"
+                      >
+                        {savedSentences[m.text] ? "✓" : "💾"}
+                      </button>
+                    </div>
                   </div>
                   {m.vi && <p className="text-xs md:text-sm text-muted-foreground">{m.vi}</p>}
                 </div>

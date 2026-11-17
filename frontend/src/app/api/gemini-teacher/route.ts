@@ -51,14 +51,15 @@ const FALLBACK_REPLIES: Record<string, { en: string; vi: string; tip: string }[]
   ],
 };
 
+const modelCache = new Map<string, { model: string; apiVer: string }>();
+
 async function discoverTextModels(apiKey: string): Promise<string[]> {
   const preferred = [
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
     "gemini-2.5-flash-lite",
     "gemini-1.5-flash",
-    "gemini-1.5-pro",
   ];
 
   try {
@@ -102,7 +103,35 @@ async function discoverTextModels(apiKey: string): Promise<string[]> {
   }
 }
 
-async function callGemini(apiKey: string, payload: any) {
+async function callGemini(apiKey: string, payload: any, preferredModel?: string) {
+  const cached = modelCache.get(apiKey);
+  const directModel = preferredModel || cached?.model;
+
+  // Fast path: skip ListModels completely when we already know a working fast model
+  if (directModel) {
+    const apiVer = cached?.apiVer || "v1beta";
+    try {
+      const resp = await fetch(
+        `https://generativelanguage.googleapis.com/${apiVer}/models/${directModel}:generateContent?key=${encodeURIComponent(
+          apiKey
+        )}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) {
+          modelCache.set(apiKey, { model: directModel, apiVer });
+          return { ok: true, model: directModel, text };
+        }
+      }
+    } catch {}
+  }
+
   const candidateModels = await discoverTextModels(apiKey);
   let lastError = "";
 
@@ -123,7 +152,10 @@ async function callGemini(apiKey: string, payload: any) {
         if (resp.ok) {
           const data = await resp.json();
           const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (text) return { ok: true, model: modelName, text };
+          if (text) {
+            modelCache.set(apiKey, { model: modelName, apiVer });
+            return { ok: true, model: modelName, text };
+          }
         } else {
           const errBody = await resp.text();
           lastError = `${resp.status} (${modelName}): ${errBody}`;
@@ -167,6 +199,7 @@ export async function POST(req: NextRequest) {
       scenario = "hobbies",
       topic = "Daily Communication",
       apiKey,
+      preferredModel,
     } = body;
 
     const activeKey = String(apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || "").trim();
@@ -291,10 +324,14 @@ Evaluate the learner's English sentence and reply STRICTLY as valid JSON (no mar
       },
     ];
 
-    const res = await callGemini(activeKey, {
-      contents,
-      generationConfig: { temperature: 0.7 },
-    });
+    const res = await callGemini(
+      activeKey,
+      {
+        contents,
+        generationConfig: { temperature: 0.6, maxOutputTokens: 320 },
+      },
+      preferredModel
+    );
 
     if (!res.ok || !res.text) {
       return NextResponse.json(

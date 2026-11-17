@@ -1,5 +1,5 @@
 "use client";
-import { API_URL, speakEnglish } from "../../utils/storage";
+import { API_URL, getUserKey, speakEnglish } from "../../utils/storage";
 import { ESSENTIAL_PHRASES, QA_REFLEX_ITEMS, GOLDEN_PATTERNS, QaReflexItem, SentencePatternItem } from "../../utils/curatedData";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -91,25 +91,43 @@ export default function ReflexTrainingPage() {
   }, []);
 
   const fetchPhrases = async () => {
+    let localSaved: Phrase[] = [];
+    try {
+      localSaved = JSON.parse(localStorage.getItem(getUserKey("saved_reflex_phrases")) || "[]");
+    } catch {}
+
+    let backendList: Phrase[] = [];
     try {
       const stored = localStorage.getItem("user");
-      if (!stored) return;
-      const user = JSON.parse(stored);
-      const res = await axios.get(`${API_URL}/phrases?userId=${user.id}`);
-      const list = Array.isArray(res.data) ? res.data : [];
-      setUserPhrases(list);
-      const combined = [
-        ...list,
-        ...ESSENTIAL_PHRASES.map((p) => ({
-          id: p.id,
-          text: p.text,
-          translation: p.translation,
-          category: p.category,
-        })),
-      ];
-      setPhrases(combined);
-      setSelectedIds(combined.map((p) => p.id));
+      if (stored) {
+        const user = JSON.parse(stored);
+        const res = await axios.get(`${API_URL}/phrases?userId=${user.id}`);
+        if (Array.isArray(res.data)) backendList = res.data;
+      }
     } catch {}
+
+    const seenTexts = new Set<string>();
+    const mergedUser: Phrase[] = [];
+    for (const p of [...localSaved, ...backendList]) {
+      const k = String(p.text || "").toLowerCase().trim();
+      if (k && !seenTexts.has(k)) {
+        seenTexts.add(k);
+        mergedUser.push(p);
+      }
+    }
+
+    setUserPhrases(mergedUser);
+    const combined = [
+      ...mergedUser,
+      ...ESSENTIAL_PHRASES.map((p) => ({
+        id: p.id,
+        text: p.text,
+        translation: p.translation,
+        category: p.category,
+      })),
+    ];
+    setPhrases(combined);
+    setSelectedIds(combined.map((p) => p.id));
   };
 
   const poolPhrases = useMemo(() => {
